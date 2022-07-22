@@ -1,0 +1,66 @@
+{
+    "database_preferences": {
+        "location": "/home/nonnon/hdd/hdd0/hdd0-1/My Projects/My Scripts/Python/Library-of-H/Library-of-H/downloads"
+    },
+    "download_preferences": {
+        "overwrite": false,
+        "destination_formats": {
+            "Hitomi": {
+                "Artist(s)": {
+                    "location_format": "/home/nonnon/hdd/hdd0/hdd0-1/My Projects/My Scripts/Python/Library-of-H/Library-of-H/downloads/{item}/{gallery_id}/",
+                    "filename_format": "{filename}.{ext}"
+                },
+                "Character(s)": {
+                    "location_format": "/home/nonnon/hdd/hdd0/hdd0-1/My Projects/My Scripts/Python/Library-of-H/Library-of-H/downloads/{item}/{gallery_id}/",
+                    "filename_format": "{filename}.{ext}"
+                },
+                "Gallery ID(s)": {
+                    "location_format": "/home/nonnon/hdd/hdd0/hdd0-1/My Projects/My Scripts/Python/Library-of-H/Library-of-H/downloads/{item}/{gallery_id}/",
+                    "filename_format": "{filename}.{ext}"
+                },
+                "Group(s)": {
+                    "location_format": "/home/nonnon/hdd/hdd0/hdd0-1/My Projects/My Scripts/Python/Library-of-H/Library-of-H/downloads/{item}/{gallery_id}/",
+                    "filename_format": "{filename}.{ext}"
+                },
+                "Series(s)": {
+                    "location_format": "/home/nonnon/hdd/hdd0/hdd0-1/My Projects/My Scripts/Python/Library-of-H/Library-of-H/downloads/{item}/{gallery_id}/",
+                    "filename_format": "{filename}.{ext}"
+                },
+                "Type(s)": {
+                    "location_format": "/home/nonnon/hdd/hdd0/hdd0-1/My Projects/My Scripts/Python/Library-of-H/Library-of-H/downloads/{item}/{gallery_id}/",
+                    "filename_format": "{filename}.{ext}"
+                },
+                "Tag(s)": {
+                    "location_format": "/home/nonnon/hdd/hdd0/hdd0-1/My Projects/My Scripts/Python/Library-of-H/Library-of-H/downloads/{item}/{gallery_id}/",
+                    "filename_format": "{filename}.{ext}"
+                }
+            },
+            "nhentai": {
+                "Artist(s)": {
+                    "location_format": "/home/nonnon/hdd/hdd0/hdd0-1/My Projects/My Scripts/Python/Library-of-H/Library-of-H/downloads{item}/{gallery_id}/",
+                    "filename_format": "{filename}.{ext}"
+                },
+                "Character(s)": {
+                    "location_format": "/home/nonnon/hdd/hdd0/hdd0-1/My Projects/My Scripts/Python/Library-of-H/Library-of-H/downloads{item}/{gallery_id}/",
+                    "filename_format": "{filename}.{ext}"
+                },
+                "Gallery ID(s)": {
+                    "location_format": "/home/nonnon/hdd/hdd0/hdd0-1/My Projects/My Scripts/Python/Library-of-H/Library-of-H/downloads{item}/{gallery_id}/",
+                    "filename_format": "{filename}.{ext}"
+                },
+                "Group(s)": {
+                    "location_format": "/home/nonnon/hdd/hdd0/hdd0-1/My Projects/My Scripts/Python/Library-of-H/Library-of-H/downloads{item}/{gallery_id}/",
+                    "filename_format": "{filename}.{ext}"
+                },
+                "Parody(s)": {
+                    "location_format": "/home/nonnon/hdd/hdd0/hdd0-1/My Projects/My Scripts/Python/Library-of-H/Library-of-H/downloads{item}/{gallery_id}/",
+                    "filename_format": "{filename}.{ext}"
+                },
+                "Tag(s)": {
+                    "location_format": "/home/nonnon/hdd/hdd0/hdd0-1/My Projects/My Scripts/Python/Library-of-H/Library-of-H/downloads{item}/{gallery_id}/",
+                    "filename_format": "{filename}.{ext}"
+                }
+            }
+        }
+    }
+}

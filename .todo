@@ -1,0 +1,64 @@
+(LIBRARY OF H) Change locaiton of config files and the likes to `~/.config/library-of-h` and its equivalent in Windows.
+(LIBRARY OF H) Create backup of database every program/download/write session.
+(LIBRARY OF H) Add `OK` and `Cancel` buttons to settings dialog. If add `Apply` button, `Apply` applies the changes, `Cancel` reverts it and `OK` saves it permanently.
+(LIBRARY OF H) (MAYBE) Disable close button if changes made to settings.
+(LIBRARY OF H) "Changes will take affect starting next download session."
+(LIBRARY OF H) Database checks for `LIKE`s or equality (`=`).
+
+(DOWNLOADER) See if you can let Qt handle all the manual deletes in code.
+(DOWNLOADER) Download thumbnail image.
+
+(EXPLORER) Add option to delete gallery/galleries.
+(EXPLORER) Add a tab feature to view current viewing gallery metadata (and buttons and stuff).
+(EXPLORER) Add database cleanup.
+
+(EXPLORER) (BROWSER) Select all and select page(s) option.
+(EXPLORER) (BROWSER) Delete button.
+(EXPLORER) (BROWSER) Change selection color.
+
+(DOWNLOADER) (MAYBE) Show stats for when the download started.
+(DOWNLOADER) (MAYBE) check if a new gallery exists by comparing the date uploaded of the first gallery in the result with the latest gallery in database.
+(DOWNLOADER) (MAYBE) Implement cross service check for already existing gallery(galleries) with that gallery ID that every gallery shares, add user settings for this option.
+(DOWNLOADER) Add `{n}` or `{number}` for gallery file download name format.
+
+(DOCS) No cross category `OR` filter for explorer because I don't see why anyone would want that.
+(DOCS) You can filter explorer with a custom user query such as:
+    `artist:"artist1, artist2" -artist:"artist3" language:"english"`
+    where each comma separated values are `OR`ed and each separate key, value pair is `AND`ed.
+(DOCS) Add a note about filenames being changed if an invalid character is encountered.
+(DOCS) Add note about `All` appearing when a file is provided.
+(DOCS) Comma separated languages for nhentai.
+(DOCS) nhentai's 'media_id' corresponds to the gallery ID of that gallery in exhentai, and, because of that, to the gallery ID it corresponds to the gallery ID of that gallery in hitomi.la. Can be used to filter duplicates downloaded from both (or more) galleries.
+    (DOWNLOADER) Add option for user to choose if they want to filter or not.
+
+(DOCS) Filters only take lower case strings.
+(DOCS) For filtering anthology, anthology is a tag so add that to tags.blacklist.
+(DOCS) You can replace a default configuration by defining it in config.json:
+```json
+    "download_preferences": {
+        "download_format": {
+            "nhentai": {
+                "location": "./downloads/directory/{gallery_id}/"
+            }
+        }
+    }
+```
+(DOCS) Only known to work with Windows and Linux systems.
+(DOCS) Add info with list of keywords for destination format.
+(DOCS) If `qt.qpa.plugin: Could not load the Qt platform plugin "xcb" in "" even though it was found.` install (these are Debian Bullseye package names): `libxkbcommon-x11-0, libxcb-xkb1, libxcb-icccm4, libxcb-image0, libxcb-keysyms1, libxcb-render-util0`, or just `sudo apt install python3-<pyside6|pyqt6|pyside2|pyqt5>` whichever is available in your official repository.
+
+(DOCS) There's a decent level of garbage input handling with config.json, just don't be a retard.
+(DOCS) Do not use a directory separator for `filename_format`, use `location_format` for that.
+
+(NOTE) nhentai does it all backend so there is no API for loading search results.
+
+ERRORS:
+    (UNSOLVED) There was some random hold up and i have no idea why.
+        Might be from gg.js changing.
+    (UNSOLVED) _write_to_disk AttributeError: 'NoneType' object has no attribute 'write'
+        ~~Try creating the files from the errors.~~ *Didn't work, could create normally. Also, stopping and re-downloading works so not the problem.*
+        Looks like it's consistently happening only with galleries such as 1746158 and 1382538, that have images "stacked" on top of each other.
+    (SOLVED*) check file existance remote file ` == int(` error: cant convert b'' to int
+        Possibly due to cache, might have been solved with "cache-control: no-cache".header.
+
+(FUTURE SUGGESTIONS) (DOWNLOADER) Find a way to pause EVERYTHING (i.e. extraction, and download).

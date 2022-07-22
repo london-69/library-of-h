@@ -1,0 +1,8 @@
+__pycache__
+*test*
+*website_files*
+*downloads*
+*.db
+error.*
+*.bak
+library of H.logs*
