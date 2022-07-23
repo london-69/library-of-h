@@ -3,21 +3,14 @@ from PySide6 import QtCore as qtc
 from library_of_h.database_manager.main import DatabaseManagerBase
 from library_of_h.downloader.services.nhentai.metadata import \
     nhentaiGalleryMetadata
-from library_of_h.logger import MainType, ServiceType, SubType, get_logger
 
 
-class nhentaiDatabaseManager(DatabaseManagerBase):
-
-    read_operation_finished_signal = qtc.Signal(list)
-
+class nhentaiDatabaseManager:
     def __init__(self) -> None:
-        self._logger = get_logger(
-            main_type=MainType.DOWNLOADER,
-            service_type=ServiceType.HITOMI,
-            sub_type=SubType.DBMGR,
-        )
+        self._database_manager = DatabaseManagerBase.get_instance()
 
-        super().__init__()
+    def __getattr__(self, attr: str):
+        return getattr(self._database_manager, attr)
 
     def _insert_into_nhentai_media_id(self, gallery_id: int, media_id: str) -> None:
         query = f"""
@@ -31,16 +24,22 @@ class nhentaiDatabaseManager(DatabaseManagerBase):
             "Galleries"."gallery_id" = ?
             """
         bind_values = (media_id, gallery_id)
-        self.write_query_queue.put((query, bind_values))
+        self._database_manager.write_query_queue.put((query, bind_values))
 
     def insert_into_table(self, gallery_metadata: nhentaiGalleryMetadata) -> None:
-        self._insert_into_types(gallery_metadata.gallery_id, gallery_metadata.type_)
-        self._insert_into_sources(gallery_metadata.gallery_id, "nhentai")
-        self._insert_into_nhentai_media_id(
+        self._database_manager.insert_into_types(
+            gallery_metadata.gallery_id, gallery_metadata.type_
+        )
+
+        self._database_manager.insert_into_sources(
+            gallery_metadata.gallery_id, "nhentai"
+        )
+
+        self._database_manager._insert_into_nhentai_media_id(
             gallery_metadata.gallery_id, gallery_metadata.media_id
         )
 
-        self._insert_into_galleries(
+        self._database_manager.insert_into_galleries(
             gallery_id=gallery_metadata.gallery_id,
             title=gallery_metadata.title,
             japanese_title=gallery_metadata.japanese_title,
@@ -52,20 +51,30 @@ class nhentaiDatabaseManager(DatabaseManagerBase):
         )
 
         for artist_name in gallery_metadata.artists:
-            self._insert_into_artists(gallery_metadata.gallery_id, artist_name)
+            self._database_manager.insert_into_artists(
+                gallery_metadata.gallery_id, artist_name
+            )
 
         for character_name in gallery_metadata.characters:
-            self._insert_into_characters(gallery_metadata.gallery_id, character_name)
+            self._database_manager.insert_into_characters(
+                gallery_metadata.gallery_id, character_name
+            )
 
         for group_name in gallery_metadata.groups:
-            self._insert_into_groups(gallery_metadata.gallery_id, group_name)
+            self._database_manager.insert_into_groups(
+                gallery_metadata.gallery_id, group_name
+            )
 
-        self._insert_into_languages(
+        self._database_manager.insert_into_languages(
             gallery_metadata.gallery_id, gallery_metadata.language
         )
 
         for series_name in gallery_metadata.series:
-            self._insert_into_series(gallery_metadata.gallery_id, series_name)
+            self._database_manager.insert_into_series(
+                gallery_metadata.gallery_id, series_name
+            )
 
         for tag_name in gallery_metadata.tags:
-            self._insert_into_tags(gallery_metadata.gallery_id, tag_name, -1)
+            self._database_manager.insert_into_tags(
+                gallery_metadata.gallery_id, tag_name, -1
+            )

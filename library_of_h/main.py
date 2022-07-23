@@ -7,6 +7,7 @@ from PySide6 import QtGui as qtg
 from PySide6 import QtWidgets as qtw
 
 from library_of_h.custom_widgets.splitter import Splitter
+from library_of_h.database_manager.main import DatabaseManagerBase
 from library_of_h.downloader.main import Downloader
 from library_of_h.explorer.main import Explorer
 from library_of_h.logs.main import Logs
@@ -116,12 +117,14 @@ class LibraryOfH(qtw.QMainWindow):
             self._splitter.widget(0).setMaximumWidth(450)
         return super().resizeEvent(a0)
 
-    def closeEvent(self, a0: qtg.QCloseEvent) -> None:
+    def closeEvent(self, event: qtg.QCloseEvent) -> None:
         # self._viewer.clean_up()
         # self._explorer.clean_up()
-        clean_up_results: list = self._downloader.close()
+        clean_up_results: dict = self._downloader.close()
+
         if clean_up_results == {}:
-            return super().closeEvent(a0)
+            DatabaseManagerBase.clean_up()
+            return super().closeEvent(event)
 
         self._message = qtw.QMessageBox(
             qtw.QMessageBox.Icon.Warning,
@@ -142,23 +145,18 @@ class LibraryOfH(qtw.QMainWindow):
             detailed_text += f"{service_name}:"
             if details.get("download"):
                 detailed_text += "\n    - Ongoing files download."
-            if not (qsize := details.get("database_write")) is None:
-                detailed_text += f"\n    - {qsize} pending database write operations."
-            if not (qsize := details.get("database_read")) is None:
-                detailed_text += f"\n    - {qsize} pending database read operations."
 
         self._message.setDetailedText(detailed_text)
 
         response = self._message.exec()
 
         if response == qtw.QMessageBox.StandardButton.Yes:
-            # self._viewer.clean_up(force=True)
-            # self._explorer.clean_up(force=True)
-            self._downloader.close(force=True)
-            return super().closeEvent(a0)
+            DatabaseManagerBase.clean_up()
+            return super().closeEvent(event)
+
         elif response == qtw.QMessageBox.StandardButton.No:
             main_signals.close_canceled_signal.emit()
-            return a0.ignore()
+            return event.ignore()
 
     def _create_logs_icon_slot(self) -> None:
         if not self._tab_widget.currentIndex() == 2:

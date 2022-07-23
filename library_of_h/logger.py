@@ -10,30 +10,30 @@ from library_of_h.signals_hub.signals_hub import logger_signals
 
 
 class MainType(IntEnum):
-    EXPLORER = auto()
+    DATABASE = auto()
     DOWNLOADER = auto()
+    EXPLORER = auto()
+    MAIN = auto()
+    VIEWER = auto()
 
 
 class SubType(IntEnum):
-    DBMGR = auto()
-    NAMGR = auto()
-    EXTTR = auto()
-    DLDR = auto()
     BASE = auto()
+    DLDR = auto()
+    EXTTR = auto()
+    NAMGR = auto()
+    NONE = auto()
 
 
 class ServiceType(IntEnum):
     HITOMI = auto()
     NHENTAI = auto()
+    NONE = auto()
 
 
 class FileHandler(logging.handlers.RotatingFileHandler):
 
     _logger_widget: "Logs"
-
-    @classmethod
-    def set_logger_widget(cls, logger_widget: "Logs") -> None:
-        cls._logger_widget = logger_widget
 
     def __init__(self) -> None:
         super().__init__(
@@ -55,6 +55,10 @@ class FileHandler(logging.handlers.RotatingFileHandler):
         if record.levelno >= logging.ERROR:
             logger_signals.halt_signal.emit()
             logger_signals.create_message_box_signal.emit(record.levelname)
+
+    @classmethod
+    def set_logger_widget(cls, logger_widget: "Logs") -> None:
+        cls._logger_widget = logger_widget
 
 
 def get_logger(

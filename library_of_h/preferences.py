@@ -98,10 +98,7 @@ class Preferences:
     )
 
     def __init__(self):
-        raise RuntimeError(
-            "Don't instantiate using Preferences(...), "
-            "use Preferences.get_instance(...)"
-        )
+        raise RuntimeError("Use the classmethod 'get_instance' to get an instance.")
 
     def __eq__(self, other: Mapping):
         return self._preferences == other._preferences

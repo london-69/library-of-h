@@ -3,7 +3,7 @@ import queue
 import re
 import sqlite3
 from contextlib import contextmanager
-from typing import Literal, Union
+from typing import Callable, Literal, Union
 from weakref import proxy
 
 from PySide6 import QtCore as qtc
@@ -13,29 +13,42 @@ from PySide6 import QtWidgets as qtw
 from library_of_h.custom_widgets.progress_dialog import ProgressDialog
 from library_of_h.database_manager.constants import (JOIN_MAPPING, LEN_QUERIES,
                                                      QUERIES, WHERE_MAPPING)
+from library_of_h.logger import MainType, ServiceType, SubType, get_logger
 from library_of_h.preferences import Preferences
 from library_of_h.signals_hub.signals_hub import database_manager_signals
 
 
 class DatabaseManagerBase(qtc.QObject):
 
-    _instances = []
+    _instance = None
 
-    _instance_number: int
     _logger: logging.Logger
-    read_operation_finished_signal: "qtc.Signal(list)"
 
     _update_progress_dialog_signal = qtc.Signal()
-    write_thread_closed_signal = qtc.Signal()
+    _write_thread_closed_signal = qtc.Signal()
+    _read_operation_finished_signal = qtc.Signal(list, object)
 
-    def __new__(cls):
+    @classmethod
+    def get_instance(cls):
+        if cls._instance:
+            return proxy(cls._instance)
+
         instance = super().__new__(cls)
-        cls._instances.append(instance)
-        instance._instance_number = len(cls._instances)
-        return proxy(instance)
+        instance._initialize()
+        cls._instance = instance
+        return proxy(cls._instance)
 
     def __init__(self) -> None:
+        raise RuntimeError("Use the classmethod 'get_instance' to get an instance.")
+
+    def _initialize(self):
         super().__init__()
+
+        self._logger = get_logger(
+            main_type=MainType.DATABASE,
+            service_type=ServiceType.NONE,
+            sub_type=SubType.NONE,
+        )
 
         self._queries_iter = iter(QUERIES)
 
@@ -53,8 +66,6 @@ class DatabaseManagerBase(qtc.QObject):
             self._create_tables_if_not_exist_exec
         )
 
-        self._update_progress_dialog_signal.connect(self._update_progress_dialog_slot)
-
         directory = qtc.QDir(
             qtc.QDir.cleanPath(
                 Preferences.get_instance()["database_preferences", "location"]
@@ -64,38 +75,55 @@ class DatabaseManagerBase(qtc.QObject):
             self._logger.error(
                 f"Failed to makeAbsolute directory: LOCATION={directory}"
             )
+            return
         if not directory.mkpath(directory.path()):
             self._logger.error(f"Failed to mkpath directory: LOCATION={directory}")
-        self._file_path = directory.absoluteFilePath("library_of_h.db")
+            return
+        self._database_file_path = directory.absoluteFilePath("library_of_h.db")
 
-        QtSql.QSqlDatabase.addDatabase("QSQLITE", f"{self._instance_number}_PRAGMA")
-        QtSql.QSqlDatabase.database(f"{self._instance_number}_PRAGMA").setDatabaseName(self._file_path)
-        QtSql.QSqlDatabase.database(f"{self._instance_number}_PRAGMA").open()
-        QtSql.QSqlQuery(
-            "PRAGMA journal_mode=wal", QtSql.QSqlDatabase.database(f"{self._instance_number}_PRAGMA")
-        ).exec()
-        QtSql.QSqlDatabase.database(f"{self._instance_number}_PRAGMA").close()
-        QtSql.QSqlDatabase.removeDatabase(f"{self._instance_number}_PRAGMA")
+        self._execute_pragma()
 
         qtc.QThreadPool.globalInstance().start(self._threaded_execute_write_queries)
         qtc.QThreadPool.globalInstance().start(self._threaded_execute_read_queries)
 
-    def __del__(self) -> None:
-        self._logger.debug(f"{type(self).__name__} instance deleted.")
+        self._update_progress_dialog_signal.connect(self._update_progress_dialog_slot)
+        self._write_thread_closed_signal.connect(self._remove_databases)
+        self._read_operation_finished_signal.connect(self._call_callback)
+
+    def _call_callback(self, results: list[QtSql.QSqlRecord], callback: Callable):
+        callback(results)
+
+    def _create_progress_dialog(
+        self,
+        labelText: str,
+        cancelButtonText: str,
+        minimum: int,
+        maximum: int,
+        parent: qtw.QWidget = None,
+        f: qtc.Qt.WindowType = qtc.Qt.WindowType.Dialog,
+    ):
+        if hasattr(self, "_progress_dialog"):
+            return
+
+        self._progress_dialog = ProgressDialog(
+            labelText, cancelButtonText, minimum, maximum, parent, f
+        )
+        self._progress_dialog.setWindowTitle("Database progress")
+        self._progress_dialog.show()
 
     def _create_tables_if_not_exist_exec(self) -> None:
-        query = QtSql.QSqlQuery(QtSql.QSqlDatabase.database(f"{self._instance_number}_write_1"))
+        query = QtSql.QSqlQuery(QtSql.QSqlDatabase.database("create"))
         try:
             query.exec(next(self._queries_iter))
         except StopIteration:
-            if not QtSql.QSqlDatabase.database(f"{self._instance_number}_write_1").commit():
+            if not QtSql.QSqlDatabase.database("create").commit():
                 self._logger.error(
-                    f"[{QtSql.QSqlDatabase.database('write_1').lastError().text()}] "
+                    f"[{QtSql.QSqlDatabase.database('write').lastError().text()}] "
                     f"Error commiting changes to database."
                 )
             else:
-                QtSql.QSqlDatabase.database(f"{self._instance_number}_write_1").close()
-                QtSql.QSqlDatabase.removeDatabase(f"{self._instance_number}_write_1")
+                QtSql.QSqlDatabase.database("create").close()
+                QtSql.QSqlDatabase.removeDatabase("create")
                 self._create_table_if_not_exists_timer.stop()
                 self._create_table_if_not_exists_timer.deleteLater()
                 del self._create_table_if_not_exists_timer
@@ -112,172 +140,15 @@ class DatabaseManagerBase(qtc.QObject):
             self._progress_dialog.deleteLater()
             del self._progress_dialog
 
-    def _insert_into_artists(self, gallery_id: int, artist_name: str) -> None:
-        artist_name = artist_name.lower()
-        query = 'INSERT OR IGNORE INTO "Artists" ("artist_name") VALUES (?)'
-        bind_values = (artist_name,)
-        self.write_query_queue.put((query, bind_values))
-
-        query = f"""
-            INSERT OR IGNORE INTO "Artist_Gallery" ("artist", "gallery")
-            SELECT
-            "artist_id", "gallery_database_id"
-            FROM
-            "Artists", "Galleries"
-            WHERE
-            "Artists"."artist_name" = ? AND "Galleries"."gallery_id" = ?
-            """
-
-        bind_values = (artist_name, gallery_id)
-        self.write_query_queue.put((query, bind_values))
-
-    def _insert_into_characters(self, gallery_id: int, character_name: str) -> None:
-        character_name = character_name.lower()
-        query = 'INSERT OR IGNORE INTO "Characters" ("character_name") VALUES (?)'
-        bind_values = (character_name,)
-        self.write_query_queue.put((query, bind_values))
-
-        query = f"""
-            INSERT OR IGNORE INTO "Character_Gallery"
-            ("character", "gallery")
-            SELECT
-            "character_id", "gallery_database_id"
-            FROM
-            "Characters", "Galleries"
-            WHERE
-            "Characters"."character_name" = ? AND "Galleries"."gallery_id" = ?
-            """
-        bind_values = (character_name, gallery_id)
-        self.write_query_queue.put((query, bind_values))
-
-    def _insert_into_galleries(
-        self,
-        gallery_id: int,
-        title: str,
-        japanese_title: str,
-        upload_date: str,
-        pages: int,
-        location: str,
-        type_: int,
-        source: int,
-    ) -> None:
-        query = """
-            INSERT OR IGNORE INTO "Galleries"
-            (
-                "gallery_id",
-                "title",
-                "japanese_title",
-                "upload_date",
-                "pages",
-                "location",
-                "type",
-                "source"
-            )
-            SELECT ?, ?, ?, ?, ?, ?, "type_id", "source_id"
-            FROM
-            "Types", "Sources"
-            WHERE
-            "Types"."type_name" = ? AND "Sources"."source_name" = ?
-            """
-        bind_values = (
-            gallery_id,
-            title,
-            japanese_title,
-            upload_date,
-            pages,
-            location,
-            type_,
-            source,
-        )
-        self.write_query_queue.put((query, bind_values))
-
-    def _insert_into_groups(self, gallery_id: int, group_name: str) -> None:
-        group_name = group_name.lower()
-        query = 'INSERT OR IGNORE INTO "Groups" ("group_name") VALUES (?)'
-        bind_values = (group_name,)
-        self.write_query_queue.put((query, bind_values))
-
-        query = f"""
-            INSERT OR IGNORE INTO "Group_Gallery"
-            ("group", "gallery")
-            SELECT
-            "group_id", "gallery_database_id"
-            FROM
-            "Groups", "Galleries"
-            WHERE
-            "Groups"."group_name" = ? AND "Galleries"."gallery_id" = ?
-            """
-        bind_values = (group_name, gallery_id)
-        self.write_query_queue.put((query, bind_values))
-
-    def _insert_into_languages(self, gallery_id: int, language_name: str) -> None:
-        language_name = language_name.lower()
-        query = 'INSERT OR IGNORE INTO "Languages" ("language_name") VALUES (?)'
-        bind_values = (language_name,)
-        self.write_query_queue.put((query, bind_values))
-
-        query = f"""
-            INSERT OR IGNORE INTO "Language_Gallery"
-            ("language", "gallery")
-            SELECT
-            "language_id", "gallery_database_id"
-            FROM
-            "Languages", "Galleries"
-            WHERE
-            "Languages"."language_name" = ? AND "Galleries"."gallery_id" = ?
-            """
-        bind_values = (language_name, gallery_id)
-        self.write_query_queue.put((query, bind_values))
-
-    def _insert_into_series(self, gallery_id: int, series_name: str) -> None:
-        series_name = series_name.lower()
-        query = 'INSERT OR IGNORE INTO "Series" ("series_name") VALUES (?)'
-        bind_values = (series_name,)
-        self.write_query_queue.put((query, bind_values))
-
-        query = f"""
-            INSERT OR IGNORE INTO "Series_Gallery"
-            ("series", "gallery")
-            SELECT
-            "series_id", "gallery_database_id"
-            FROM
-            "Series", "Galleries"
-            WHERE
-            "Series"."series_name" = ? AND "Galleries"."gallery_id" = ?
-            """
-        bind_values = (series_name, gallery_id)
-        self.write_query_queue.put((query, bind_values))
-
-    def _insert_into_sources(self, gallery_id: int, source_name: str) -> None:
-        source_name = source_name.lower()
-        query = 'INSERT OR IGNORE INTO "Sources" ("source_name") VALUES (?)'
-        bind_values = (source_name,)
-        self.write_query_queue.put((query, bind_values))
-
-    def _insert_into_tags(self, gallery_id: int, tag_name: str, tag_sex: int) -> None:
-        tag_name = tag_name.lower()
-        query = 'INSERT OR IGNORE INTO "Tags" ("tag_name", "tag_sex") VALUES (?, ?)'
-        bind_values = (tag_name, tag_sex)
-        self.write_query_queue.put((query, bind_values))
-
-        query = f"""
-            INSERT OR IGNORE INTO "Tag_Gallery"
-            ("tag", "gallery")
-            SELECT
-            "tag_id", "gallery_database_id"
-            FROM
-            "Tags", "Galleries"
-            WHERE
-            "Tags"."tag_name" = ? AND "Galleries"."gallery_id" = ?
-            """
-        bind_values = (tag_name, gallery_id)
-        self.write_query_queue.put((query, bind_values))
-
-    def _insert_into_types(self, gallery_id: int, type_name: str) -> None:
-        type_name = type_name.lower()
-        query = 'INSERT OR IGNORE INTO "Types" ("type_name") VALUES (?)'
-        bind_values = (type_name,)
-        self.write_query_queue.put((query, bind_values))
+    def _execute_pragma(self):
+        QtSql.QSqlDatabase.addDatabase("QSQLITE", "PRAGMA")
+        QtSql.QSqlDatabase.database("PRAGMA").setDatabaseName(self._database_file_path)
+        QtSql.QSqlDatabase.database("PRAGMA").open()
+        QtSql.QSqlQuery(
+            "PRAGMA journal_mode=wal", QtSql.QSqlDatabase.database("PRAGMA")
+        ).exec()
+        QtSql.QSqlDatabase.database("PRAGMA").close()
+        QtSql.QSqlDatabase.removeDatabase("PRAGMA")
 
     def _parse_filter_clause(
         self, filter_clause: str, comp: str
@@ -396,57 +267,6 @@ class DatabaseManagerBase(qtc.QObject):
         else:
             return "", "", bind_values, type_keys
 
-    def _parse_filter_dict(
-        self, filter_dict: dict, comp: str
-    ) -> tuple[str, str, list, list]:
-        """
-        Creates a `filter_clause` with `user_dict` and passes that to
-        `self._parse_filter_clause`.
-
-        Parameters
-        -----------
-            filter_dict (dict):
-                Dictionary mapping of filter category and keywords:
-                    {
-                        "key": {
-                            "include": "comma separated values"
-                            "exclude": "comma separated values"
-                        }
-                    }
-            comp (str):
-                Comparision method for the query.
-
-        Returns
-        --------
-            See `self._parse_filter_clause`.
-        """
-        filter_mapping = {}
-        # Creates a mapping of {"category": "values"} or {"-category: "values"} from
-        # `filter_dict`:
-        # {
-        # "artist": {
-        #       ...
-        #   },
-        # "-artist" : {
-        #       ...
-        #   }
-        # }
-        for category, values in filter_dict.items():
-            for type_, vals in values.items():
-                if type_ == "include":
-                    filter_mapping.setdefault(category, [])
-                    filter_mapping[category].extend(vals)
-                if type_ == "exclude":
-                    filter_mapping.setdefault(f"-{category}", [])
-                    filter_mapping[f"-{category}"].extend(vals)
-
-        filter_clause = ""
-        # Create a user query with `filter_mapping`.
-        for category, values in filter_mapping.items():
-            filter_clause += f"{category}:\"{','.join(values)}\" "
-
-        return parse_filter_clause(filter_clause, comp)
-
     def _read(self, query: QtSql.QSqlQuery) -> list:
         if not query.exec():
             self._logger.error(
@@ -476,37 +296,37 @@ class DatabaseManagerBase(qtc.QObject):
         finally:
             QtSql.QSqlDatabase.database(connection).close()
 
+    def _remove_databases(self):
+        QtSql.QSqlDatabase.removeDatabase("write")
+        QtSql.QSqlDatabase.removeDatabase("read")
+
     def _threaded_execute_read_queries(self) -> None:
-        QtSql.QSqlDatabase.addDatabase("QSQLITE", f"{self._instance_number}_read")
-        QtSql.QSqlDatabase.database(f"{self._instance_number}_read").setDatabaseName(self._file_path)
+        QtSql.QSqlDatabase.addDatabase("QSQLITE", "read")
+        QtSql.QSqlDatabase.database("read").setDatabaseName(self._database_file_path)
 
         while True:
             value = self.read_query_queue.get(block=True, timeout=None)
-
-            with self._read_context_manager(f"{self._instance_number}_read"):
-                query = QtSql.QSqlQuery(QtSql.QSqlDatabase.database(f"{self._instance_number}_read"))
+            with self._read_context_manager("read"):
                 while True:
-                    if isinstance(value, tuple):
+                    if value is None:
+                        return
+                    elif len(value) == 3:
                         query_str = value[0]
                         bind_values = value[1]
-                    elif isinstance(value, str):
-                        query_str = value
+                        callback = value[2]
+                    elif len(value) == 2:
+                        query_str = value[0]
                         bind_values = ()
-                    elif value is None:
-                        try:
-                            self.read_operation_finished_signal.disconnect()
-                        except TypeError:
-                            # TypeError: disconnect() failed between
-                            # 'read_operation_finished_signal' and all its
-                            # connections
-                            pass
-                        return
+                        callback = value[1]
 
+                    query = QtSql.QSqlQuery(QtSql.QSqlDatabase.database("read"))
                     query.prepare(query_str)
                     for bind_value in bind_values:
                         query.addBindValue(bind_value, QtSql.QSql.ParamTypeFlag.Out)
 
-                    self.read_operation_finished_signal.emit(self._read(query))
+                    self._read_operation_finished_signal.emit(
+                        self._read(query), callback
+                    )
 
                     try:
                         value = self.read_query_queue.get(block=False, timeout=None)
@@ -516,15 +336,17 @@ class DatabaseManagerBase(qtc.QObject):
                     query.clear()
 
     def _threaded_execute_write_queries(self) -> None:
-        QtSql.QSqlDatabase.addDatabase("QSQLITE", f"{self._instance_number}_write_2")
-        QtSql.QSqlDatabase.database(f"{self._instance_number}_write_2").setDatabaseName(self._file_path)
-
+        QtSql.QSqlDatabase.addDatabase("QSQLITE", "write")
+        QtSql.QSqlDatabase.database("write").setDatabaseName(self._database_file_path)
         while True:
             value = self.write_query_queue.get(block=True, timeout=None)
 
-            with self._write_context_manager(f"{self._instance_number}_write_2"):
-                query = QtSql.QSqlQuery(QtSql.QSqlDatabase.database(f"{self._instance_number}_write_2"))
+            with self._write_context_manager("write"):
+                query = QtSql.QSqlQuery(QtSql.QSqlDatabase.database("write"))
+                import time
+
                 while True:
+                    time.sleep(2)
                     if isinstance(value, tuple):
                         query_str = value[0]
                         bind_values = value[1]
@@ -535,7 +357,7 @@ class DatabaseManagerBase(qtc.QObject):
 
                     elif value is None:
                         self._delete_progress_dialog()
-                        self.write_thread_closed_signal.emit()
+                        self._write_thread_closed_signal.emit()
                         return
 
                     query.prepare(query_str)
@@ -561,6 +383,14 @@ class DatabaseManagerBase(qtc.QObject):
             # For when this is called when the progress dialog has not been
             # created.
             pass
+
+    def _wait_for_database_operations(self):
+        self._logger.info(
+            f"Database manager has {self.write_query_queue.qsize()} pending write operations."
+        )
+        loop = qtc.QEventLoop()
+        self._write_thread_closed_signal.connect(lambda: loop.quit())
+        loop.exec()
 
     def _write(self, query: QtSql.QSqlQuery) -> None:
         if not query.exec():
@@ -591,85 +421,63 @@ class DatabaseManagerBase(qtc.QObject):
                 )
             QtSql.QSqlDatabase.database(connection).close()
 
-    def check_gallery_existence(self, gallery_id: int) -> bool:
-        query = """SELECT "gallery_id" FROM "Galleries" WHERE "gallery_id" = ?"""
-        bind_values = (gallery_id,)
-        self.read_query_queue.put((query, bind_values))
-
-    def clean_up(self):
-        self._database_manager.write_query_queue.put(None)
-        self._database_manager.read_query_queue.put(None)
-        QtSql.QSqlDatabase.removeDatabase(f"{self._instance_number}_write_1")
-        QtSql.QSqlDatabase.removeDatabase(f"{self._instance_number}_write_2")
-        QtSql.QSqlDatabase.removeDatabase(f"{self._instance_number}_read")
-        self.deleteLater()
-
-    def create_progress_dialog(
-        self,
-        labelText: str,
-        cancelButtonText: str,
-        minimum: int,
-        maximum: int,
-        parent: qtw.QWidget = None,
-        f: qtc.Qt.WindowType = qtc.Qt.WindowType.Dialog,
-    ):
-        if hasattr(self, "_progress_dialog"):
-            return
-
-        self._progress_dialog = ProgressDialog(
-            labelText, cancelButtonText, minimum, maximum, parent, f
+    @classmethod
+    def clean_up(cls):
+        instance = cls._instance
+        instance.write_query_queue.put(None)
+        instance.read_query_queue.put(None)
+        instance._create_progress_dialog(
+            f"Waiting on {instance.write_query_queue.qsize() + instance.read_query_queue.qsize()} database operations...",
+            None,
+            0,
+            instance.write_query_queue.qsize() + instance.read_query_queue.qsize(),
         )
-        self._progress_dialog.setWindowTitle("Database progress")
-        self._progress_dialog.show()
+        instance._wait_for_database_operations()
 
     def create_tables_if_not_exist(self) -> None:
-        self.create_progress_dialog(
-            "Waiting on database write operations...", None, 0, LEN_QUERIES
+        QtSql.QSqlDatabase.addDatabase("QSQLITE", "create")
+        QtSql.QSqlDatabase.database("create").setDatabaseName(self._database_file_path)
+        self._create_progress_dialog(
+            "Waiting on database create operations...", None, 0, LEN_QUERIES
         )
         if not (
-            QtSql.QSqlDatabase.database(f"{self._instance_number}_write_1").open()
-            and QtSql.QSqlDatabase.database(f"{self._instance_number}_write_1").transaction()
+            QtSql.QSqlDatabase.database("create").open()
+            and QtSql.QSqlDatabase.database("create").transaction()
         ):
             self._logger.error(
-                f"[{QtSql.QSqlDatabase.database('write_1').lastError().text()}] "
-                f"Error opening database for write."
+                f"[{QtSql.QSqlDatabase.database('create').lastError().text()}] "
+                f"Error opening database for create."
             )
         else:
             self._create_table_if_not_exists_timer.start(0)
 
     def get(
         self,
-        filter_clause: str = "",
+        callback: Callable,
         select: Union[Literal["*"], list[str]] = "*",
         join: Union[Literal["auto"], Literal["*"], str, list[str]] = "",
+        filter_clause: str = "",
         limit: int = 0,
         offset: int = 0,
-        filter_dict: dict = {},
     ) -> bool:
         """
         Queries the directory with provided arguments.
 
         Parameters
         -----------
-            filter_clause (str):
-                A custom query that looks like 'key1:"value1, value2, ..." key2:"..." ...'
+            callback (Callable):
+                Function to call when read operation ends.
             select (str):
                 Which columns to select data from. Defaults to '*'.
             join (Union[Literal["auto"], Literal['*'], str, list[str]]):
                 Table(s) to join. Defaults to ''. With "auto", join query is
-                selected based on `filter_clause` or `filter_dict` keys.
+                selected based on `filter_clause` keys.
+            filter_clause (str):
+                A custom query that looks like 'key1:"value1, value2, ..." key2:"..." ...'
             limit (int):
                 Limit for maximum number of records to get.
             offset (int):
                 Row offset to start getting records from. Defaults to 0.
-            filter_dict (dict):
-                Dictionary mapping of filter category and keywords:
-                    {
-                        "key": {
-                            "include": "comma separated values"
-                            "exclude": "comma separated values"
-                        }
-                    }
 
         Returns
         --------
@@ -680,8 +488,6 @@ class DatabaseManagerBase(qtc.QObject):
                 False:
                     No SQL query was created not added to the read query queue.
                     Denotes a syntax error in the passed `filter_clause`.
-                    Not `filter_dict` because it ''should'' be passed a curated
-                    dictionary.
         """
 
         if isinstance(select, str):
@@ -698,7 +504,7 @@ class DatabaseManagerBase(qtc.QObject):
         if limit:
             offset_limit_query = f"LIMIT {limit} OFFSET {offset}"
 
-        if not filter_clause and not filter_dict:
+        if filter_clause == "":
             if join == "":
                 query_join = ""
             elif join == "*" or join == "auto":
@@ -710,7 +516,7 @@ class DatabaseManagerBase(qtc.QObject):
 
             query = "\n\n".join((query_select, query_join, offset_limit_query))
 
-            self.read_query_queue.put(query)
+            self.read_query_queue.put((query, callback))
             return True
 
         comp_pref = Preferences.get_instance()["database_preferences"]["compare_like"]
@@ -719,22 +525,16 @@ class DatabaseManagerBase(qtc.QObject):
         else:
             comp = "="
 
-        if filter_clause != "":
-            (
-                include_query_logic,
-                exclude_query_logic,
-                bind_values,
-                type_keys,
-            ) = parse_filter_clause(filter_clause=filter_clause, comp=comp)
-        else:
-            (
-                include_query_logic,
-                exclude_query_logic,
-                bind_values,
-                type_keys,
-            ) = parse_filter_dict(filter_dict=filter_dict, comp=comp)
+        (
+            include_query_logic,
+            exclude_query_logic,
+            bind_values,
+            type_keys,
+        ) = self._parse_filter_clause(filter_clause=filter_clause, comp=comp)
 
-        if isinstance(join, list):
+        if join == "":
+            query_join = ""
+        elif isinstance(join, list):
             query_join = "".join(JOIN_MAPPING[key] for key in join)
         elif join == "*":
             query_join = "".join(value for value in JOIN_MAPPING.values())
@@ -799,5 +599,172 @@ class DatabaseManagerBase(qtc.QObject):
                     offset_limit_query,
                 )
             )
-        self.read_query_queue.put((query, bind_values))
+        self.read_query_queue.put((query, bind_values, callback))
         return True
+
+    def insert_into_artists(self, gallery_id: int, artist_name: str) -> None:
+        artist_name = artist_name.lower()
+        query = 'INSERT OR IGNORE INTO "Artists" ("artist_name") VALUES (?)'
+        bind_values = (artist_name,)
+        self.write_query_queue.put((query, bind_values))
+
+        query = f"""
+            INSERT OR IGNORE INTO "Artist_Gallery" ("artist", "gallery")
+            SELECT
+            "artist_id", "gallery_database_id"
+            FROM
+            "Artists", "Galleries"
+            WHERE
+            "Artists"."artist_name" = ? AND "Galleries"."gallery_id" = ?
+            """
+
+        bind_values = (artist_name, gallery_id)
+        self.write_query_queue.put((query, bind_values))
+
+    def insert_into_characters(self, gallery_id: int, character_name: str) -> None:
+        character_name = character_name.lower()
+        query = 'INSERT OR IGNORE INTO "Characters" ("character_name") VALUES (?)'
+        bind_values = (character_name,)
+        self.write_query_queue.put((query, bind_values))
+
+        query = f"""
+            INSERT OR IGNORE INTO "Character_Gallery"
+            ("character", "gallery")
+            SELECT
+            "character_id", "gallery_database_id"
+            FROM
+            "Characters", "Galleries"
+            WHERE
+            "Characters"."character_name" = ? AND "Galleries"."gallery_id" = ?
+            """
+        bind_values = (character_name, gallery_id)
+        self.write_query_queue.put((query, bind_values))
+
+    def insert_into_galleries(
+        self,
+        gallery_id: int,
+        title: str,
+        japanese_title: str,
+        upload_date: str,
+        pages: int,
+        location: str,
+        type_: int,
+        source: int,
+    ) -> None:
+        query = """
+            INSERT OR IGNORE INTO "Galleries"
+            (
+                "gallery_id",
+                "title",
+                "japanese_title",
+                "upload_date",
+                "pages",
+                "location",
+                "type",
+                "source"
+            )
+            SELECT ?, ?, ?, ?, ?, ?, "type_id", "source_id"
+            FROM
+            "Types", "Sources"
+            WHERE
+            "Types"."type_name" = ? AND "Sources"."source_name" = ?
+            """
+        bind_values = (
+            gallery_id,
+            title,
+            japanese_title,
+            upload_date,
+            pages,
+            location,
+            type_,
+            source,
+        )
+        self.write_query_queue.put((query, bind_values))
+
+    def insert_into_groups(self, gallery_id: int, group_name: str) -> None:
+        group_name = group_name.lower()
+        query = 'INSERT OR IGNORE INTO "Groups" ("group_name") VALUES (?)'
+        bind_values = (group_name,)
+        self.write_query_queue.put((query, bind_values))
+
+        query = f"""
+            INSERT OR IGNORE INTO "Group_Gallery"
+            ("group", "gallery")
+            SELECT
+            "group_id", "gallery_database_id"
+            FROM
+            "Groups", "Galleries"
+            WHERE
+            "Groups"."group_name" = ? AND "Galleries"."gallery_id" = ?
+            """
+        bind_values = (group_name, gallery_id)
+        self.write_query_queue.put((query, bind_values))
+
+    def insert_into_languages(self, gallery_id: int, language_name: str) -> None:
+        language_name = language_name.lower()
+        query = 'INSERT OR IGNORE INTO "Languages" ("language_name") VALUES (?)'
+        bind_values = (language_name,)
+        self.write_query_queue.put((query, bind_values))
+
+        query = f"""
+            INSERT OR IGNORE INTO "Language_Gallery"
+            ("language", "gallery")
+            SELECT
+            "language_id", "gallery_database_id"
+            FROM
+            "Languages", "Galleries"
+            WHERE
+            "Languages"."language_name" = ? AND "Galleries"."gallery_id" = ?
+            """
+        bind_values = (language_name, gallery_id)
+        self.write_query_queue.put((query, bind_values))
+
+    def insert_into_series(self, gallery_id: int, series_name: str) -> None:
+        series_name = series_name.lower()
+        query = 'INSERT OR IGNORE INTO "Series" ("series_name") VALUES (?)'
+        bind_values = (series_name,)
+        self.write_query_queue.put((query, bind_values))
+
+        query = f"""
+            INSERT OR IGNORE INTO "Series_Gallery"
+            ("series", "gallery")
+            SELECT
+            "series_id", "gallery_database_id"
+            FROM
+            "Series", "Galleries"
+            WHERE
+            "Series"."series_name" = ? AND "Galleries"."gallery_id" = ?
+            """
+        bind_values = (series_name, gallery_id)
+        self.write_query_queue.put((query, bind_values))
+
+    def insert_into_sources(self, gallery_id: int, source_name: str) -> None:
+        source_name = source_name.lower()
+        query = 'INSERT OR IGNORE INTO "Sources" ("source_name") VALUES (?)'
+        bind_values = (source_name,)
+        self.write_query_queue.put((query, bind_values))
+
+    def insert_into_tags(self, gallery_id: int, tag_name: str, tag_sex: int) -> None:
+        tag_name = tag_name.lower()
+        query = 'INSERT OR IGNORE INTO "Tags" ("tag_name", "tag_sex") VALUES (?, ?)'
+        bind_values = (tag_name, tag_sex)
+        self.write_query_queue.put((query, bind_values))
+
+        query = f"""
+            INSERT OR IGNORE INTO "Tag_Gallery"
+            ("tag", "gallery")
+            SELECT
+            "tag_id", "gallery_database_id"
+            FROM
+            "Tags", "Galleries"
+            WHERE
+            "Tags"."tag_name" = ? AND "Galleries"."gallery_id" = ?
+            """
+        bind_values = (tag_name, gallery_id)
+        self.write_query_queue.put((query, bind_values))
+
+    def insert_into_types(self, gallery_id: int, type_name: str) -> None:
+        type_name = type_name.lower()
+        query = 'INSERT OR IGNORE INTO "Types" ("type_name") VALUES (?)'
+        bind_values = (type_name,)
+        self.write_query_queue.put((query, bind_values))

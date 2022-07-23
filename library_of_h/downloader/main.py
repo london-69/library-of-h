@@ -69,10 +69,10 @@ class Downloader(qtw.QWidget):
         self._service_combo_box.setDisabled(False)
         self._download_stack.setDisabled(False)
 
-    def close(self, force: bool = False) -> dict:
+    def close(self) -> dict:
         results = {}
         for service_name, service_widget in self._services.items():
-            response = service_widget.close(force=force)
+            response = service_widget.close()
             if not response is None:
                 results[service_name] = response
         return results

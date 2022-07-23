@@ -295,6 +295,3 @@ class ServiceDownloaderBase(qtc.QObject):
         )  # Set status of current to-be-downloaded file.
 
         self.file_finished_signal.emit()
-
-    def __del__(self):
-        self._logger.debug(f"{type(self).__name__} instance deleted.")

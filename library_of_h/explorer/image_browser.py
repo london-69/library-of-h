@@ -34,20 +34,18 @@ class ImageBrowser(qtw.QListView):
         self._worker.item_created_signal.connect(self._add_item)
 
         self._database_manager = ExplorerDatabaseManager()
-        self._database_manager.read_operation_finished_signal.connect(
-            self._read_finished_slot
-        )
 
         self._initialize()
 
     def _initialize(self):
         self._database_manager.get(
+            callback=self._create_items,
             limit=BROWSER_IMAGES_LIMIT,
         )
 
-    def _read_finished_slot(self, results: list[Union[QtSql.QSqlRecord, None]]) -> None:
+    def _create_items(self, results: list[Union[QtSql.QSqlRecord, None]]) -> None:
         self._worker.prepare(results)
-        qtc.QThreadPool.globalInstance().start(self._worker.create_item)
+        qtc.QThreadPool.globalInstance().start(self._worker.create_items)
 
     def _add_item(self, index: int, thumbnail: qtg.QImage, description: str):
         model_index = self._model.createIndex(index, 0)
@@ -101,7 +99,7 @@ class CreateItemWorker(qtc.QObject):
 
         return qimage
 
-    def create_item(self):
+    def create_items(self):
         for index, record in enumerate(self._records):
             thumbnail = self._create_thumbnail(record)
             description = self._create_description(record)

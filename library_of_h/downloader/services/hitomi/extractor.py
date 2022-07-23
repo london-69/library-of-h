@@ -472,6 +472,3 @@ class HitomiExtractor(qtc.QObject):
             int.from_bytes(bytes_array[i : i + 4], "big", signed=True)
             for i in range(len(bytes_array))[::4]
         )
-
-    def __del__(self):
-        self._logger.debug(f"{type(self).__name__} instance deleted.")

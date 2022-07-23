@@ -9,6 +9,7 @@ from PySide6 import QtCore as qtc
 from PySide6 import QtStateMachine as qsm
 from PySide6 import QtWidgets as qtw
 
+from library_of_h.database_manager.main import DatabaseManagerBase
 from library_of_h.downloader.base_classes.metadata import (FileMetadataBase,
                                                            GalleryMetadataBase)
 from library_of_h.downloader.custom_sub_classes.download_files_model import \
@@ -36,6 +37,7 @@ class ServiceBase(qtc.QObject):
     _download_files_model: DownloadFilesModel
     _download_items_model: DownloadItemsModel
     _current_working_gallery_metadata: GalleryMetadataBase
+    _database_manager: DatabaseManagerBase
 
     def __init__(self, output_table_view: ItemsTableView, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -272,10 +274,7 @@ class ServiceBase(qtc.QObject):
             self._network_access_manager.deleteLater()
             del self._network_access_manager
 
-        if hasattr(self, "_database_manager"):
-            self._logger.debug("Deinitializing database manager.")
-            self._database_manager.clean_up()
-            del self._database_manager
+        del self._database_manager
 
         if hasattr(self, "_downloader"):
             self._logger.debug("Deinitializing downloader.")
@@ -287,7 +286,6 @@ class ServiceBase(qtc.QObject):
             # Don't need close before deleteLater()
             self._output_dialog.deleteLater()
             del self._output_dialog
-            self._logger.debug("Output dialog instance deleted.")
 
         if hasattr(self, "_current_working_gallery_metadata"):
             del self._current_working_gallery_metadata
@@ -458,9 +456,13 @@ class ServiceBase(qtc.QObject):
 
         self._current_working_gallery_metadata = gallery_metadata
         self._output_dialog.setDisabled(True)
-        self._database_manager.check_gallery_existence(gallery_metadata.gallery_id)
+        self._database_manager.get(
+            callback=self._database_manager_gallery_check_finished,
+            select="gallery_id",
+            filter_clause=f'gallery:"{gallery_metadata.gallery_id}"',
+        )
 
-    def _database_manager_gallery_check_finished_slot(self, results: list) -> None:
+    def _database_manager_gallery_check_finished(self, results: list) -> None:
         self._output_dialog.setDisabled(False)
         self._ignore_or_download_gallery(results)
 
@@ -475,20 +477,7 @@ class ServiceBase(qtc.QObject):
         self._summary_dialog.deleteLater()
         del self._summary_dialog
 
-        if not hasattr(self, "_database_manager"):
-            downloader_signals.download_session_finished_signal.emit()
-            return
-
-        self._logger.info(
-            f"Database manager has {self._database_manager.write_query_queue.qsize()} pending operations."
-        )
-        # Display pending database write operations, if exist.
-        self._database_manager.create_progress_dialog(
-            "Waiting on database write operations...",
-            None,
-            0,
-            self._database_manager.write_query_queue.qsize(),
-        )
+        downloader_signals.download_session_finished_signal.emit()
 
     def _output_dialog_canceled_slot(self) -> None:
         if hasattr(self._network_access_manager, "reply"):
@@ -507,55 +496,17 @@ class ServiceBase(qtc.QObject):
             self._deinitialize_session()
         self._machine.start()
 
-    def _wait_for_database_operations(self) -> None:
-        self._logger.info(
-            f"Database manager has {self._database_manager.write_query_queue.qsize()} pending write operations."
-        )
-        loop = qtc.QEventLoop()
-        self._database_manager.write_thread_closed_signal.connect(lambda: loop.quit())
-        loop.exec()
-
     def _close_canceled(self) -> None:
         # To be thought of/to be implemented.
         pass
 
-    def close(self, force: bool) -> Union[dict, None]:
-        self._logger.debug(f"Begin close: FORCE={force}")
+    def close(self) -> Union[dict, None]:
         results = {}
-        if not force:
-            if hasattr(self, "_downloader"):
-                results["download"] = True
+        if hasattr(self, "_downloader"):
+            results["download"] = True
 
-            if hasattr(self, "_database_manager"):
-                if not self._database_manager.write_query_queue.empty():
-                    results[
-                        "database_write"
-                    ] = self._database_manager.write_query_queue.qsize()
-                if not self._database_manager.read_query_queue.empty():
-                    results[
-                        "database_read"
-                    ] = self._database_manager.read_query_queue.qsize()
-
-        if results:
+        if results != {}:
             self._logger.warning("Pending operations exist.")
             return results
-
-        if self._machine.property("state") > 0:
-            self._deinitialize_session()
-            if (
-                hasattr(self, "_database_manager")
-                and not self._database_manager.write_query_queue.empty()
-            ):
-                self._database_manager.create_progress_dialog(
-                    "Waiting on database write operations...",
-                    None,
-                    0,
-                    self._database_manager.write_query_queue.qsize(),
-                )
-                self._wait_for_database_operations()
-
-            if hasattr(self, "_summary_dialog"):
-                # Don't need close before deleteLater()
-                self._summary_dialog.close()
 
         return None

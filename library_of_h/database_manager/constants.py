@@ -167,6 +167,9 @@ QUERIES = [
     FOREIGN KEY("source") REFERENCES "Sources"("source_id") ON DELETE CASCADE,
     FOREIGN KEY("type") REFERENCES "Types"("type_id") ON DELETE CASCADE
 )""",
+    """
+    CREATE INDEX IF NOT EXISTS "idx_gallery_id" ON "Galleries" ("gallery_id")
+)""",
 ]
 
 LEN_QUERIES = len(QUERIES)
@@ -174,10 +177,13 @@ LEN_QUERIES = len(QUERIES)
 WHERE_MAPPING = {
     "artist": '"Artists"."artist_name"',
     "character": '"Characters"."character_name"',
+    "gallery": '"Galleries"."gallery_id"',
     "group": '"Groups"."group_name"',
+    "jtitle": '"Galleries"."japanese_title"',
     "language": '"Languages"."language_name"',
     "series": '"Series"."series_name"',
     "tag": '"Tags"."tag_name"',
+    "title": '"Galleries"."title"',
     "type": '"Types"."type_name"',
     "source": '"Sources"."source_name"',
 }

@@ -590,6 +590,3 @@ class nhentaiExtractor(qtc.QObject):
             self._item,
         )
         self.metadata_ready_signal.emit(gallery_metadata)
-
-    def __del__(self):
-        self._logger.debug(f"{type(self).__name__} instance deleted.")

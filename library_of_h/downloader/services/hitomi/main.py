@@ -61,12 +61,6 @@ class Hitomi(ServiceBase):
         self._logger.debug("Instanciating classes.")
 
         self._database_manager = HitomiDatabaseManager()
-        self._database_manager.write_thread_closed_signal.connect(
-            self._write_thread_closed_slot
-        )
-        self._database_manager.read_operation_finished_signal.connect(
-            self._database_manager_gallery_check_finished_slot
-        )
 
         self._network_access_manager = HitomiNetworkAccessManager()
 

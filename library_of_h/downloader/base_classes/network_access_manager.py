@@ -248,6 +248,3 @@ class NetworkAccessManagerBase(qtn.QNetworkAccessManager):
         )
         self._retry_timer.start()
         return 403
-
-    def __del__(self):
-        self._logger.debug(f"{type(self).__name__} instance deleted.")

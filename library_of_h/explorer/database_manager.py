@@ -1,8 +1,9 @@
-from PySide6 import QtCore as qtc
-
 from library_of_h.database_manager.main import DatabaseManagerBase
 
 
-class ExplorerDatabaseManager(DatabaseManagerBase):
+class ExplorerDatabaseManager:
+    def __init__(self) -> None:
+        self._database_manager = DatabaseManagerBase.get_instance()
 
-    read_operation_finished_signal = qtc.Signal(list)
+    def __getattr__(self, attr: str):
+        return getattr(self._database_manager, attr)
