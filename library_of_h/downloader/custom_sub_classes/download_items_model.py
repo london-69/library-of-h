@@ -176,11 +176,13 @@ class DownloadItemsModel(qtc.QAbstractTableModel):
         """
         self._i += 1
 
-        if (status_index := self.createIndex(self._i, 0)).isValid() is False:
+        if self._i >= self.rowCount() or self._i < 0:
             self._i = -1
             if not default is None:
                 return default
             raise StopIteration()
+
+        status_index = self.createIndex(self._i, 0)
         item_name_index = self.createIndex(self._i, 1)
         download_type_index = self.createIndex(self._i, 2)
 

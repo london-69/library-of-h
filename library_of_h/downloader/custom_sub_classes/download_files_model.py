@@ -235,11 +235,13 @@ class DownloadFilesModel(qtc.QAbstractTableModel):
         """
         self._i += 1
 
-        if (status_index := self.createIndex(self._i, 0)).isValid() is False:
+        if self._i >= self.rowCount() or self._i < 0:
             self._i = -1
             if not default is None:
                 return default
             raise StopIteration()
+
+        status_index = self.createIndex(self._i, 0)
         file_name_index = self.createIndex(self._i, 1)
         file_size_index = self.createIndex(self._i, 2)
         download_speed_index = self.createIndex(self._i, 3)
