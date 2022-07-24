@@ -64,7 +64,7 @@ class Hitomi(ServiceBase):
 
         self._network_access_manager = HitomiNetworkAccessManager()
 
-        self._output_dialog = OutputDialog(parent=self.top_level_widget)
+        self._output_dialog = OutputDialog(parent=self.parent().parent())
 
         self._extractor = HitomiExtractor()
         self._downloader = HitomiDownloader()
@@ -115,8 +115,7 @@ class Hitomi(ServiceBase):
         )
         self._output_table_view.setModel(self._download_items_model)
 
-        self._logger.debug("Preparing database.")
-        self._database_manager.create_tables_if_not_exist()
+        self._session_initialized.emit()
 
     # MISCELLANEOUS METHODS
     def _get_file_url(self, file: HitomiFileMetadata) -> str:

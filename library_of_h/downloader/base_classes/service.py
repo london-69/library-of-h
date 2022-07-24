@@ -39,6 +39,8 @@ class ServiceBase(qtc.QObject):
     _current_working_gallery_metadata: GalleryMetadataBase
     _database_manager: DatabaseManagerBase
 
+    _session_initialized = qtc.Signal()
+
     def __init__(self, output_table_view: ItemsTableView, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
@@ -51,7 +53,6 @@ class ServiceBase(qtc.QObject):
             sub_type=SubType.BASE,
         )
 
-        self.top_level_widget = qtw.QApplication.topLevelWidgets()[0]
         main_signals.close_canceled_signal.connect(self._close_canceled)
 
         self._total_download_time_elapsed_timer = qtc.QElapsedTimer()
@@ -61,30 +62,35 @@ class ServiceBase(qtc.QObject):
 
     def _setup_machine(self):
         self._machine = qsm.QStateMachine()
+
         logger_signals.halt_signal.connect(self._machine.stop)
         self._machine.stopped.connect(self._machine_stop_slot)
+
         self._s_idle = State()
+        self._s_initialize = State()
+        self._s_download = State()
+
         self._s_idle.setObjectName("idle_state")
         self._s_idle.assignProperty(self._machine, "state", 0)
-        self._s_initialize = State()
-        self._s_initialize.setObjectName("initialize_state")
-        self._s_initialize.assignProperty(self._machine, "state", 1)
-        self._s_initialize.set_on_entry(self._initialize_session)
-        self._s_download = State()
-        self._s_download.setObjectName("download_state")
-        self._s_download.assignProperty(self._machine, "state", 2)
-        self._s_download.set_on_entry(self._begin_session)
         self._s_idle.addTransition(
             self.gui,
             "download_button_clicked_signal(QString, QString ,QString)",
             self._s_initialize,
         )
 
+        self._s_initialize.setObjectName("initialize_state")
+        self._s_initialize.assignProperty(self._machine, "state", 1)
+        self._s_initialize.set_on_entry(self._initialize_session)
         self._s_initialize.addTransition(
-            database_manager_signals,
-            "create_table_if_not_exists_finished_signal()",
+            self,
+            "_session_initialized()",
             self._s_download,
         )
+
+        self._s_download.setObjectName("download_state")
+        self._s_download.assignProperty(self._machine, "state", 2)
+        self._s_download.set_on_entry(self._begin_session)
+
         self._machine.addState(self._s_idle)
         self._machine.addState(self._s_initialize)
         self._machine.addState(self._s_download)
@@ -489,6 +495,7 @@ class ServiceBase(qtc.QObject):
         )  # Set remaining items as aborted.
         self._machine.stop()
 
+    @qtc.Slot()
     def _machine_stop_slot(self):
         if self._machine.property("state") == 2:
             self._end_session()
@@ -496,6 +503,7 @@ class ServiceBase(qtc.QObject):
             self._deinitialize_session()
         self._machine.start()
 
+    @qtc.Slot()
     def _close_canceled(self) -> None:
         # To be thought of/to be implemented.
         pass

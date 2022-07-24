@@ -60,12 +60,6 @@ class DatabaseManagerBase(qtc.QObject):
         self.write_query_queue = queue.Queue()
         self.read_query_queue = queue.Queue()
 
-        self._create_table_if_not_exists_timer = qtc.QTimer()
-        self._create_table_if_not_exists_timer.setSingleShot(True)
-        self._create_table_if_not_exists_timer.timeout.connect(
-            self._create_tables_if_not_exist_exec
-        )
-
         directory = qtc.QDir(
             qtc.QDir.cleanPath(
                 Preferences.get_instance()["database_preferences", "location"]
@@ -82,6 +76,7 @@ class DatabaseManagerBase(qtc.QObject):
         self._database_file_path = directory.absoluteFilePath("library_of_h.db")
 
         self._execute_pragma()
+        self._create_tables_if_not_exist()
 
         qtc.QThreadPool.globalInstance().start(self._threaded_execute_write_queries)
         qtc.QThreadPool.globalInstance().start(self._threaded_execute_read_queries)
@@ -111,11 +106,26 @@ class DatabaseManagerBase(qtc.QObject):
         self._progress_dialog.setWindowTitle("Database progress")
         self._progress_dialog.show()
 
-    def _create_tables_if_not_exist_exec(self) -> None:
-        query = QtSql.QSqlQuery(QtSql.QSqlDatabase.database("create"))
-        try:
-            query.exec(next(self._queries_iter))
-        except StopIteration:
+    def _create_tables_if_not_exist(self) -> None:
+        QtSql.QSqlDatabase.addDatabase("QSQLITE", "create")
+        QtSql.QSqlDatabase.database("create").setDatabaseName(self._database_file_path)
+        self._create_progress_dialog(
+            "Waiting on database create operations...", None, 0, LEN_QUERIES
+        )
+        if not (
+            QtSql.QSqlDatabase.database("create").open()
+            and QtSql.QSqlDatabase.database("create").transaction()
+        ):
+            self._logger.error(
+                f"[{QtSql.QSqlDatabase.database('create').lastError().text()}] "
+                f"Error opening database for create."
+            )
+        else:
+            query = QtSql.QSqlQuery(QtSql.QSqlDatabase.database("create"))
+            for sql_query in QUERIES:
+                query.prepare(sql_query)
+                query.exec()
+                self._update_progress_dialog_signal.emit()
             if not QtSql.QSqlDatabase.database("create").commit():
                 self._logger.error(
                     f"[{QtSql.QSqlDatabase.database('write').lastError().text()}] "
@@ -124,14 +134,7 @@ class DatabaseManagerBase(qtc.QObject):
             else:
                 QtSql.QSqlDatabase.database("create").close()
                 QtSql.QSqlDatabase.removeDatabase("create")
-                self._create_table_if_not_exists_timer.stop()
-                self._create_table_if_not_exists_timer.deleteLater()
-                del self._create_table_if_not_exists_timer
                 self._delete_progress_dialog()
-                database_manager_signals.create_table_if_not_exists_finished_signal.emit()
-        else:
-            self._update_progress_dialog_signal.emit()
-            self._create_table_if_not_exists_timer.start(0)
 
     def _delete_progress_dialog(self) -> None:
         if hasattr(self, "_progress_dialog"):
@@ -346,7 +349,6 @@ class DatabaseManagerBase(qtc.QObject):
                 import time
 
                 while True:
-                    time.sleep(2)
                     if isinstance(value, tuple):
                         query_str = value[0]
                         bind_values = value[1]
@@ -389,7 +391,7 @@ class DatabaseManagerBase(qtc.QObject):
             f"Database manager has {self.write_query_queue.qsize()} pending write operations."
         )
         loop = qtc.QEventLoop()
-        self._write_thread_closed_signal.connect(lambda: loop.quit())
+        self._write_thread_closed_signal.connect(lambda: (print("ebedde"), loop.quit()))
         loop.exec()
 
     def _write(self, query: QtSql.QSqlQuery) -> None:
@@ -424,6 +426,11 @@ class DatabaseManagerBase(qtc.QObject):
     @classmethod
     def clean_up(cls):
         instance = cls._instance
+        if instance.write_query_queue.qsize() == instance.read_query_queue.qsize() == 0:
+            instance.write_query_queue.put(None)
+            instance.read_query_queue.put(None)
+            return
+
         instance.write_query_queue.put(None)
         instance.read_query_queue.put(None)
         instance._create_progress_dialog(
@@ -433,23 +440,6 @@ class DatabaseManagerBase(qtc.QObject):
             instance.write_query_queue.qsize() + instance.read_query_queue.qsize(),
         )
         instance._wait_for_database_operations()
-
-    def create_tables_if_not_exist(self) -> None:
-        QtSql.QSqlDatabase.addDatabase("QSQLITE", "create")
-        QtSql.QSqlDatabase.database("create").setDatabaseName(self._database_file_path)
-        self._create_progress_dialog(
-            "Waiting on database create operations...", None, 0, LEN_QUERIES
-        )
-        if not (
-            QtSql.QSqlDatabase.database("create").open()
-            and QtSql.QSqlDatabase.database("create").transaction()
-        ):
-            self._logger.error(
-                f"[{QtSql.QSqlDatabase.database('create').lastError().text()}] "
-                f"Error opening database for create."
-            )
-        else:
-            self._create_table_if_not_exists_timer.start(0)
 
     def get(
         self,

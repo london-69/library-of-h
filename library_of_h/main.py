@@ -49,45 +49,6 @@ class LibraryOfH(qtw.QMainWindow):
 
         self.show()
 
-    def _create_menu_bar(self):
-        menu_bar = self.menuBar()
-        menu = menu_bar.addMenu("&Options")
-        menu.addAction(
-            qtg.QIcon.fromTheme("preferences-system"),
-            "&Preferences",
-            self._menu_bar_action_preferences,
-        )
-        menu.setToolTip("Open preferences dialog")
-
-    def _create_splitter_widget(self) -> None:
-        self._splitter = Splitter(parent=self)
-        self._splitter.setContentsMargins(5, 5, 5, 5)
-        self._splitter.setHandleWidth(15)
-        self._tab_widget = qtw.QTabWidget(parent=self._splitter)
-        self._tab_widget.currentChanged.connect(self._tab_widget_current_changed_slot)
-
-    def _create_viewer_widget(self) -> None:
-        self._viewer = Viewer(parent=self._splitter)
-        self._control_modifier_signal.connect(self._viewer._control_modifier_slot)
-
-    def _create_explorer_widget(self) -> None:
-        self._explorer = Explorer(parent=self._tab_widget)
-        self._tab_widget.insertTab(0, self._explorer, "Explorer")
-
-    def _create_downloader_widget(self) -> None:
-        self._downloader = Downloader(parent=self._tab_widget)
-        self._tab_widget.insertTab(1, self._downloader, "Downloader")
-
-    def _create_logger_widget(self) -> None:
-        self._logger_widget = Logs()
-        logger.set_logger_widget(self._logger_widget)
-        self._tab_widget.insertTab(2, self._logger_widget, "Logs")
-
-    def _create_logger_messsage_box(self, level: str) -> None:
-        qtw.QMessageBox.critical(
-            self, level, "An error occured, see the logs for details."
-        )
-
     def keyPressEvent(self, event: qtg.QKeyEvent) -> None:
         if event.key() == qtc.Qt.Key.Key_Escape:
             self._splitter.handle(0).collapse()
@@ -126,29 +87,7 @@ class LibraryOfH(qtw.QMainWindow):
             DatabaseManagerBase.clean_up()
             return super().closeEvent(event)
 
-        self._message = qtw.QMessageBox(
-            qtw.QMessageBox.Icon.Warning,
-            "Warning!",
-            "There are ongoing operations, are you sure you want to quit?",
-            qtw.QMessageBox.StandardButton.Yes | qtw.QMessageBox.StandardButton.No,
-            self,
-        )
-        self._message.setInformativeText(
-            "Force quitting can:\n"
-            "    - corrupt your download file(s) and\n"
-            "    - corrupt your database."
-        )
-        self._message.setDefaultButton(qtw.QMessageBox.StandardButton.No)
-
-        detailed_text = ""
-        for service_name, details in clean_up_results.items():
-            detailed_text += f"{service_name}:"
-            if details.get("download"):
-                detailed_text += "\n    - Ongoing files download."
-
-        self._message.setDetailedText(detailed_text)
-
-        response = self._message.exec()
+        response = self._close_confirm_dialog(clean_up_results)
 
         if response == qtw.QMessageBox.StandardButton.Yes:
             DatabaseManagerBase.clean_up()
@@ -157,6 +96,73 @@ class LibraryOfH(qtw.QMainWindow):
         elif response == qtw.QMessageBox.StandardButton.No:
             main_signals.close_canceled_signal.emit()
             return event.ignore()
+
+    def _close_confirm_dialog(self, clean_up_results: dict):
+        message = qtw.QMessageBox(
+            qtw.QMessageBox.Icon.Warning,
+            "Warning!",
+            "There are ongoing operations, are you sure you want to quit?",
+            qtw.QMessageBox.StandardButton.Yes | qtw.QMessageBox.StandardButton.No,
+            self,
+        )
+        message.setInformativeText(
+            "Force quitting can:\n"
+            "    - corrupt your download file(s) and\n"
+            "    - corrupt your database."
+        )
+        message.setDefaultButton(qtw.QMessageBox.StandardButton.No)
+
+        detailed_text = ""
+        for service_name, details in clean_up_results.items():
+            detailed_text += f"{service_name}:"
+            if details.get("download"):
+                detailed_text += "\n    - Ongoing files download."
+
+        message.setDetailedText(detailed_text)
+        return message.exec()
+
+    def _create_menu_bar(self):
+        menu_bar = self.menuBar()
+        menu = menu_bar.addMenu("&Options")
+        menu.addAction(
+            qtg.QIcon.fromTheme("preferences-system"),
+            "&Preferences",
+            self._menu_bar_action_preferences,
+        )
+        menu.setToolTip("Open preferences dialog")
+
+    def _create_downloader_widget(self) -> None:
+        self._downloader = Downloader(parent=self)
+        self._tab_widget.insertTab(1, self._downloader, "Downloader")
+
+    def _create_explorer_widget(self) -> None:
+        self._explorer = Explorer(parent=self)
+        self._tab_widget.insertTab(0, self._explorer, "Explorer")
+
+    def _create_logger_messsage_box(self, level: str) -> None:
+        qtw.QMessageBox.critical(
+            self, level, "An error occured, see the logs for details."
+        )
+
+    def _create_logger_widget(self) -> None:
+        self._logger_widget = Logs()
+        logger.set_logger_widget(self._logger_widget)
+        self._tab_widget.insertTab(2, self._logger_widget, "Logs")
+
+    def _create_splitter_widget(self) -> None:
+        self._splitter = Splitter(parent=self)
+        self._splitter.setContentsMargins(5, 5, 5, 5)
+        self._splitter.setHandleWidth(15)
+        self._tab_widget = qtw.QTabWidget(parent=self)
+        self._tab_widget.currentChanged.connect(self._tab_widget_current_changed_slot)
+
+    def _create_viewer_widget(self) -> None:
+        self._viewer = Viewer(parent=self)
+        self._control_modifier_signal.connect(self._viewer._control_modifier_slot)
+
+    def _menu_bar_action_preferences(self):
+        preference_dialog = PreferencesDialog(self)
+        preference_dialog.exec()
 
     def _create_logs_icon_slot(self) -> None:
         if not self._tab_widget.currentIndex() == 2:
@@ -174,14 +180,6 @@ class LibraryOfH(qtw.QMainWindow):
             self._tab_widget.setMaximumWidth(450)
         else:
             self._tab_widget.setMaximumWidth(self.width() // 1.5)
-
-    def _menu_bar_action_preferences(self):
-        preference_dialog = PreferencesDialog(self)
-        preference_dialog.accepted.connect(self._save_preferences)
-        preference_dialog.exec()
-
-    def _save_preferences(self):
-        pass
 
 
 def main() -> None:

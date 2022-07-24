@@ -157,7 +157,7 @@ class CodeEditor(qtw.QWidget):
 
 class LineNumberArea(qtw.QWidget):
     def __init__(self, code_editor: CodeEditor) -> None:
-        super().__init__(code_editor)
+        super().__init__(parent=code_editor)
         self._code_editor = code_editor
 
     def sizeHint(self) -> int:

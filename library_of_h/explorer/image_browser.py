@@ -22,7 +22,7 @@ class ImageBrowser(qtw.QListView):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._model = BrowserItemsModel(self)
+        self._model = BrowserItemsModel(parent=self)
 
         self.setAlternatingRowColors(True)
         self.setItemDelegate(BrowserItemsDelegate(self))
@@ -30,7 +30,7 @@ class ImageBrowser(qtw.QListView):
         self.setSelectionMode(qtw.QAbstractItemView.SelectionMode.ExtendedSelection)
         self.setVerticalScrollMode(qtw.QListView.ScrollMode.ScrollPerPixel)
 
-        self._worker = CreateItemWorker(self)
+        self._worker = CreateItemWorker(parent=self)
         self._worker.item_created_signal.connect(self._add_item)
 
         self._database_manager = ExplorerDatabaseManager()

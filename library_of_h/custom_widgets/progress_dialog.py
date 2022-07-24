@@ -1,4 +1,5 @@
 from PySide6 import QtCore as qtc
+from PySide6 import QtGui as qtg
 from PySide6 import QtWidgets as qtw
 
 
@@ -15,3 +16,6 @@ class ProgressDialog(qtw.QProgressDialog):
 
     def update_progress(self) -> None:
         self.setValue(self.value() + 1)
+
+    def closeEvent(self, event):
+        event.ignore()

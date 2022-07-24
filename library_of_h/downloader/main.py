@@ -54,7 +54,7 @@ class Downloader(qtw.QWidget):
                 nhentai,
             ),
         ):
-            widget = service_widget(self._items_table_view, self.parent())
+            widget = service_widget(self._items_table_view, self)
             self._download_stack.addWidget(widget.gui)
             self._services[service_name] = widget
 

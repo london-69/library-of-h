@@ -69,7 +69,7 @@ class nhentai(ServiceBase):
 
         self._network_access_manager = nhentaiNetworkAccessManager()
 
-        self._output_dialog = OutputDialog(parent=self.top_level_widget)
+        self._output_dialog = OutputDialog(parent=self.parent().parent())
         self._output_dialog.canceled_signal.connect(self._output_dialog_canceled_slot)
 
         self._extractor = nhentaiExtractor()
@@ -114,9 +114,6 @@ class nhentai(ServiceBase):
             f"{self._download_items_model.rowCount()} {('item', 'items')[self._download_items_model.rowCount() != 1]} found."
         )
         self._output_table_view.setModel(self._download_items_model)
-
-        self._logger.debug("Preparing database.")
-        self._database_manager.create_tables_if_not_exist()
 
     # MISCELLANEOUS METHODS
     def _get_file_url(self, thumbnail_url: str) -> str:
