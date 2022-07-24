@@ -346,7 +346,6 @@ class DatabaseManagerBase(qtc.QObject):
 
             with self._write_context_manager("write"):
                 query = QtSql.QSqlQuery(QtSql.QSqlDatabase.database("write"))
-                import time
 
                 while True:
                     if isinstance(value, tuple):
@@ -445,6 +444,7 @@ class DatabaseManagerBase(qtc.QObject):
         self,
         callback: Callable,
         select: Union[Literal["*"], list[str]] = "*",
+        count: bool = False,
         join: Union[Literal["auto"], Literal["*"], str, list[str]] = "",
         filter_clause: str = "",
         limit: int = 0,
@@ -459,6 +459,8 @@ class DatabaseManagerBase(qtc.QObject):
                 Function to call when read operation ends.
             select (str):
                 Which columns to select data from. Defaults to '*'.
+            count (bool):
+                Whether to count the total number of results or not.
             join (Union[Literal["auto"], Literal['*'], str, list[str]]):
                 Table(s) to join. Defaults to ''. With "auto", join query is
                 selected based on `filter_clause` keys.
@@ -480,16 +482,17 @@ class DatabaseManagerBase(qtc.QObject):
                     Denotes a syntax error in the passed `filter_clause`.
         """
 
-        if isinstance(select, str):
-            if select == "*":
-                query_select = f"""SELECT DISTINCT {select} FROM "Galleries\""""
-            else:
-                query_select = f"""SELECT DISTINCT "{select}" FROM "Galleries\""""
+        if select == "*":
+            query_select = f"""SELECT DISTINCT {select} """
+        elif isinstance(select, str):
+            query_select = f"""SELECT DISTINCT "{select}" """
         else:
-            query_select = (
-                f"""SELECT DISTINCT "{'","'.join(select)}" FROM "Galleries\""""
-            )
-
+            query_select = f"""SELECT DISTINCT "{'","'.join(select)}" """
+        if count:
+            query_select += ", c.total_rows"
+        query_select += """ FROM "Galleries\""""
+        if count:
+            query_select += """, (SELECT COUNT(1) total_rows FROM "Galleries") c"""
         offset_limit_query = ""
         if limit:
             offset_limit_query = f"LIMIT {limit} OFFSET {offset}"

@@ -18,27 +18,34 @@ from library_of_h.explorer.custom_sub_classes.browser_items_model import \
 from library_of_h.explorer.database_manager import ExplorerDatabaseManager
 
 
-class ImageBrowser(qtw.QListView):
+class ImageBrowser(qtw.QWidget):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self._model = BrowserItemsModel(parent=self)
-
-        self.setAlternatingRowColors(True)
-        self.setItemDelegate(BrowserItemsDelegate(self))
-        self.setModel(self._model)
-        self.setSelectionMode(qtw.QAbstractItemView.SelectionMode.ExtendedSelection)
-        self.setVerticalScrollMode(qtw.QListView.ScrollMode.ScrollPerPixel)
-
-        self._worker = CreateItemWorker(parent=self)
-        self._worker.item_created_signal.connect(self._add_item)
+        self.setLayout(qtw.QVBoxLayout())
 
         self._database_manager = ExplorerDatabaseManager()
+        self._model = BrowserItemsModel(parent=self)
+        self._view = qtw.QListView()
+        self._worker = CreateItemWorker(parent=self)
+
+        self._view.setAlternatingRowColors(True)
+        self._view.setItemDelegate(BrowserItemsDelegate(self))
+        self._view.setModel(self._model)
+        self._view.setSelectionMode(
+            qtw.QAbstractItemView.SelectionMode.ExtendedSelection
+        )
+        self._view.setVerticalScrollMode(qtw.QListView.ScrollMode.ScrollPerPixel)
+
+        self._worker.item_created_signal.connect(self._add_item)
+
+        self.layout().addWidget(self._view)
 
         self._initialize()
 
     def _initialize(self):
         self._database_manager.get(
+            count=True,
             callback=self._create_items,
             limit=BROWSER_IMAGES_LIMIT,
         )
@@ -51,7 +58,7 @@ class ImageBrowser(qtw.QListView):
         model_index = self._model.createIndex(index, 0)
         self._model.setData(model_index, thumbnail, qtc.Qt.ItemDataRole.DecorationRole)
         self._model.setData(model_index, description, qtc.Qt.ItemDataRole.DisplayRole)
-        self.update(model_index)
+        self._view.update(model_index)
 
 
 class CreateItemWorker(qtc.QObject):
@@ -63,7 +70,7 @@ class CreateItemWorker(qtc.QObject):
         return description
 
     def _create_thumbnail(self, record: QtSql.QSqlRecord) -> qtg.QImage:
-        location = record.value(record.indexOf("location"))
+        location = record.value("location")
         file = os.path.join(location, sorted(os.listdir(location))[0])
         image = Image.open(file)
         if image.width > THUMBNAIL_SIZE[0] or image.height > THUMBNAIL_SIZE[0]:

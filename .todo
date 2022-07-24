@@ -17,8 +17,10 @@
 (EXPLORER) (BROWSER) Change selection color.
 (LIBRARY OF H) Working on database stuff.
 (LIBRARY OF H) Remove database connections only at the end of the program.
-(LIBRARY OF H) Closing gets stuck for a while on database operation.
 (EXPLORER) Explorer show total number of rows.
+(DOWNLOADER) Download thumbnail for separate usage.
+(VIEWER) Video viewer too.
+(VIEWER) Maybe animated thumbnail like youtube.
 
 (DOWNLOADER) (MAYBE) Show stats for when the download started.
 (DOWNLOADER) (MAYBE) check if a new gallery exists by comparing the date uploaded of the first gallery in the result with the latest gallery in database.
