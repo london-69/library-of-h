@@ -23,8 +23,7 @@ def check_fetch_nozomi() -> bool:
 
 
 def check_gg_js() -> bool:
-    from library_of_h.downloader.services.hitomi.template import (gg_js_0,
-                                                                  gg_js_1)
+    from library_of_h.downloader.services.hitomi.template import gg_js_0, gg_js_1
 
     res = requests.get("https://ltn.hitomi.la/gg.js")
     if not res.ok:

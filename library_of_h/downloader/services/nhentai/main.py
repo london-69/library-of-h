@@ -4,23 +4,28 @@ import re
 from typing import Generator
 
 from library_of_h.downloader.base_classes.service import ServiceBase
-from library_of_h.downloader.custom_sub_classes.download_files_model import \
-    DownloadFilesModel
-from library_of_h.downloader.custom_sub_classes.download_items_model import \
-    DownloadItemsModel
+from library_of_h.downloader.custom_sub_classes.download_files_model import (
+    DownloadFilesModel,
+)
+from library_of_h.downloader.custom_sub_classes.download_items_model import (
+    DownloadItemsModel,
+)
 from library_of_h.downloader.filter import Filter
 from library_of_h.downloader.output_dialog import OutputDialog
 from library_of_h.downloader.output_table_view import ItemsTableView
-from library_of_h.downloader.services.nhentai.database_manager import \
-    nhentaiDatabaseManager
-from library_of_h.downloader.services.nhentai.downloader import \
-    nhentaiDownloader
+from library_of_h.downloader.services.nhentai.database_manager import (
+    nhentaiDatabaseManager,
+)
+from library_of_h.downloader.services.nhentai.downloader import nhentaiDownloader
 from library_of_h.downloader.services.nhentai.extractor import nhentaiExtractor
-from library_of_h.downloader.services.nhentai.network_access_manager import \
-    nhentaiNetworkAccessManager
-from library_of_h.signals_hub.signals_hub import (database_manager_signals,
-                                                  downloader_signals,
-                                                  logger_signals)
+from library_of_h.downloader.services.nhentai.network_access_manager import (
+    nhentaiNetworkAccessManager,
+)
+from library_of_h.signals_hub.signals_hub import (
+    database_manager_signals,
+    downloader_signals,
+    logger_signals,
+)
 
 
 class nhentai(ServiceBase):
@@ -65,7 +70,7 @@ class nhentai(ServiceBase):
         self._filter = Filter()
 
         self._logger.debug("Instanciating classes.")
-        self._database_manager = nhentaiDatabaseManager()
+        self._database_manager = nhentaiDatabaseManager(parent=self)
 
         self._network_access_manager = nhentaiNetworkAccessManager()
 

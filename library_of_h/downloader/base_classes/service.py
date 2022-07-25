@@ -10,12 +10,16 @@ from PySide6 import QtStateMachine as qsm
 from PySide6 import QtWidgets as qtw
 
 from library_of_h.database_manager.main import DatabaseManagerBase
-from library_of_h.downloader.base_classes.metadata import (FileMetadataBase,
-                                                           GalleryMetadataBase)
-from library_of_h.downloader.custom_sub_classes.download_files_model import \
-    DownloadFilesModel
-from library_of_h.downloader.custom_sub_classes.download_items_model import \
-    DownloadItemsModel
+from library_of_h.downloader.base_classes.metadata import (
+    FileMetadataBase,
+    GalleryMetadataBase,
+)
+from library_of_h.downloader.custom_sub_classes.download_files_model import (
+    DownloadFilesModel,
+)
+from library_of_h.downloader.custom_sub_classes.download_items_model import (
+    DownloadItemsModel,
+)
 from library_of_h.downloader.custom_sub_classes.state import State
 from library_of_h.downloader.filter import Filter
 from library_of_h.downloader.output_table_view import ItemsTableView
@@ -23,9 +27,12 @@ from library_of_h.downloader.services.hitomi.gui import HitomiGUI
 from library_of_h.downloader.services.nhentai.gui import nhentaiGUI
 from library_of_h.logger import MainType, ServiceType, SubType, get_logger
 from library_of_h.miscellaneous.functions import get_value_and_unit_from_Bytes
-from library_of_h.signals_hub.signals_hub import (database_manager_signals,
-                                                  downloader_signals,
-                                                  logger_signals, main_signals)
+from library_of_h.signals_hub.signals_hub import (
+    database_manager_signals,
+    downloader_signals,
+    logger_signals,
+    main_signals,
+)
 
 
 class ServiceBase(qtc.QObject):
@@ -465,7 +472,8 @@ class ServiceBase(qtc.QObject):
         self._database_manager.get(
             callback=self._database_manager_gallery_check_finished,
             select="gallery_id",
-            filter_clause=f'gallery:"{gallery_metadata.gallery_id}"',
+            filter=f'gallery:"{gallery_metadata.gallery_id}", source:"{self.__class__.__name__.lower()}"',
+            join="auto"
         )
 
     def _database_manager_gallery_check_finished(self, results: list) -> None:

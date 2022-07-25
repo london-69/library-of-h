@@ -3,14 +3,15 @@ from __future__ import annotations
 from PySide6 import QtCore as qtc
 from PySide6 import QtNetwork as qtn
 
-from library_of_h.downloader.base_classes.service_downloader import \
-    ServiceDownloaderBase
+from library_of_h.downloader.base_classes.service_downloader import (
+    ServiceDownloaderBase,
+)
 from library_of_h.downloader.services.hitomi.common import *
 from library_of_h.downloader.services.hitomi.constants import *
-from library_of_h.downloader.services.hitomi.metadata import \
-    HitomiGalleryMetadata
-from library_of_h.downloader.services.hitomi.network_access_manager import \
-    HitomiNetworkAccessManager
+from library_of_h.downloader.services.hitomi.metadata import HitomiGalleryMetadata
+from library_of_h.downloader.services.hitomi.network_access_manager import (
+    HitomiNetworkAccessManager,
+)
 from library_of_h.logger import MainType, ServiceType, SubType, get_logger
 
 

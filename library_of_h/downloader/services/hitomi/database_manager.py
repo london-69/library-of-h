@@ -1,13 +1,12 @@
 from PySide6 import QtCore as qtc
 
 from library_of_h.database_manager.main import DatabaseManagerBase
-from library_of_h.downloader.services.hitomi.metadata import \
-    HitomiGalleryMetadata
+from library_of_h.downloader.services.hitomi.metadata import HitomiGalleryMetadata
 
 
 class HitomiDatabaseManager:
-    def __init__(self) -> None:
-        self._database_manager = DatabaseManagerBase.get_instance()
+    def __init__(self, *args, **kwargs) -> None:
+        self._database_manager = DatabaseManagerBase.get_instance(*args, **kwargs)
 
     def __getattr__(self, attr: str):
         return getattr(self._database_manager, attr)

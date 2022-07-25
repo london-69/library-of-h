@@ -1,7 +1,9 @@
 from dataclasses import dataclass, field
 
-from library_of_h.downloader.base_classes.metadata import (FileMetadataBase,
-                                                           GalleryMetadataBase)
+from library_of_h.downloader.base_classes.metadata import (
+    FileMetadataBase,
+    GalleryMetadataBase,
+)
 
 
 @dataclass

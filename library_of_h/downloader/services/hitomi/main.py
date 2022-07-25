@@ -3,22 +3,30 @@ from __future__ import annotations
 from typing import Generator
 
 from library_of_h.downloader.base_classes.service import ServiceBase
-from library_of_h.downloader.custom_sub_classes.download_files_model import \
-    DownloadFilesModel
-from library_of_h.downloader.custom_sub_classes.download_items_model import \
-    DownloadItemsModel
+from library_of_h.downloader.custom_sub_classes.download_files_model import (
+    DownloadFilesModel,
+)
+from library_of_h.downloader.custom_sub_classes.download_items_model import (
+    DownloadItemsModel,
+)
 from library_of_h.downloader.filter import Filter
 from library_of_h.downloader.output_dialog import OutputDialog
 from library_of_h.downloader.services.hitomi.common import (
-    url_from_url, url_from_url_from_hash)
-from library_of_h.downloader.services.hitomi.database_manager import \
-    HitomiDatabaseManager
+    url_from_url,
+    url_from_url_from_hash,
+)
+from library_of_h.downloader.services.hitomi.database_manager import (
+    HitomiDatabaseManager,
+)
 from library_of_h.downloader.services.hitomi.downloader import HitomiDownloader
 from library_of_h.downloader.services.hitomi.extractor import HitomiExtractor
 from library_of_h.downloader.services.hitomi.metadata import (
-    HitomiFileMetadata, HitomiGalleryMetadata)
-from library_of_h.downloader.services.hitomi.network_access_manager import \
-    HitomiNetworkAccessManager
+    HitomiFileMetadata,
+    HitomiGalleryMetadata,
+)
+from library_of_h.downloader.services.hitomi.network_access_manager import (
+    HitomiNetworkAccessManager,
+)
 from library_of_h.signals_hub.signals_hub import downloader_signals
 
 
@@ -60,7 +68,7 @@ class Hitomi(ServiceBase):
 
         self._logger.debug("Instanciating classes.")
 
-        self._database_manager = HitomiDatabaseManager()
+        self._database_manager = HitomiDatabaseManager(parent=self)
 
         self._network_access_manager = HitomiNetworkAccessManager()
 

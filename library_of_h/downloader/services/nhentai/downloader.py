@@ -1,5 +1,6 @@
-from library_of_h.downloader.base_classes.service_downloader import \
-    ServiceDownloaderBase
+from library_of_h.downloader.base_classes.service_downloader import (
+    ServiceDownloaderBase,
+)
 from library_of_h.logger import MainType, ServiceType, SubType, get_logger
 
 

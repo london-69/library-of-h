@@ -1,6 +1,5 @@
 from library_of_h.downloader.base_classes.gui import GUIBase
-from library_of_h.downloader.services.nhentai.constants import (DOWNLOAD_TYPES,
-                                                                ORDER_BY)
+from library_of_h.downloader.services.nhentai.constants import DOWNLOAD_TYPES, ORDER_BY
 
 
 class nhentaiGUI(GUIBase):
