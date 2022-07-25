@@ -49,7 +49,7 @@ class FileHandler(logging.handlers.RotatingFileHandler):
     def emit(self, record: logging.LogRecord) -> None:
         super().emit(record)
         if record.levelno != logging.DEBUG:
-            self._logger_widget.appendPlainText(self.format(record))
+            self._logger_widget.appendPlainText(self.format(record).replace("\n", " "))
         if record.levelno >= logging.WARNING:
             logger_signals.create_logs_icon_signal.emit()
         if record.levelno >= logging.ERROR:

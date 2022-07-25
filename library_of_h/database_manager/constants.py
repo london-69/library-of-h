@@ -174,6 +174,39 @@ QUERIES = [
 
 LEN_QUERIES = len(QUERIES)
 
+SELECT_MAPPING = {
+    "*": [
+        "artist",
+        "character",
+        "gallery",
+        "group",
+        "japanese_title",
+        "language",
+        "location",
+        "pages",
+        "series",
+        "source",
+        "tag",
+        "title",
+        "type",
+        "upload date",
+    ],
+    "artist": 'GROUP_CONCAT(DISTINCT "artist_name") "artist_name"',
+    "character": 'GROUP_CONCAT(DISTINCT "character_name") "character_name"',
+    "gallery": 'GROUP_CONCAT(DISTINCT "gallery_id") "gallery_id"',
+    "group": 'GROUP_CONCAT(DISTINCT "group_name") "group_name"',
+    "japanese_title": '"japanese_title"',
+    "language": 'GROUP_CONCAT(DISTINCT "language_name") "language_name"',
+    "location": '"location"',
+    "pages": '"pages"',
+    "series": 'GROUP_CONCAT(DISTINCT "series_name") "series_name"',
+    "source": 'GROUP_CONCAT(DISTINCT "source_name") "source_name"',
+    "tag": 'GROUP_CONCAT(DISTINCT "tag_name") "tag_name", GROUP_CONCAT(DISTINCT "tag_sex") "tag_sex"',
+    "title": '"title"',
+    "type": 'GROUP_CONCAT(DISTINCT "type_name") "type_name"',
+    "upload date": '"upload_date"',
+}
+
 WHERE_MAPPING = {
     "artist": '"Artists"."artist_name"',
     "character": '"Characters"."character_name"',

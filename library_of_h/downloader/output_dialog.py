@@ -2,9 +2,8 @@ from PySide6 import QtCore as qtc
 from PySide6 import QtGui as qtg
 from PySide6 import QtWidgets as qtw
 
-from library_of_h.downloader.custom_sub_classes.download_files_model import (
-    DownloadFilesModel,
-)
+from library_of_h.downloader.custom_sub_classes.download_files_model import \
+    DownloadFilesModel
 
 
 class Progresses(qtw.QWidget):

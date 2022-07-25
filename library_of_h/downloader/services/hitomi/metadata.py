@@ -1,10 +1,8 @@
 from dataclasses import dataclass, field
 from typing import NamedTuple
 
-from library_of_h.downloader.base_classes.metadata import (
-    FileMetadataBase,
-    GalleryMetadataBase,
-)
+from library_of_h.downloader.base_classes.metadata import (FileMetadataBase,
+                                                           GalleryMetadataBase)
 
 
 @dataclass

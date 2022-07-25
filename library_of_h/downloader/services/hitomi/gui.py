@@ -1,5 +1,6 @@
 from library_of_h.downloader.base_classes.gui import GUIBase
-from library_of_h.downloader.services.hitomi.constants import DOWNLOAD_TYPES, ORDER_BY
+from library_of_h.downloader.services.hitomi.constants import (DOWNLOAD_TYPES,
+                                                               ORDER_BY)
 
 
 class HitomiGUI(GUIBase):

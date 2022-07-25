@@ -64,5 +64,13 @@ class BrowserItemsModel(qtc.QAbstractListModel):
         self.dataChanged.emit(index, index, [role])
         return True
 
+    def removeRows(self, row: int, count: int):
+        self.beginRemoveRows(qtc.QModelIndex(), row, count)
+        for r in range(row, count):
+            index = self.createIndex(r, 0)
+            self.setData(index, None, qtc.Qt.ItemDataRole.DisplayRole)
+            self.setData(index, None, qtc.Qt.ItemDataRole.DecorationRole)
+        self.endRemoveRows()
+
     def rowCount(self, _: Optional[qtc.QModelIndex] = None) -> int:
         return len(self._data.thumbnails) - self._data.thumbnails.count(None)

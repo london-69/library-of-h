@@ -3,9 +3,8 @@ import re
 from PySide6 import QtCore as qtc
 from PySide6 import QtNetwork as qtn
 
-from library_of_h.downloader.base_classes.network_access_manager import (
-    NetworkAccessManagerBase,
-)
+from library_of_h.downloader.base_classes.network_access_manager import \
+    NetworkAccessManagerBase
 from library_of_h.downloader.services.hitomi.constants import DOMAIN
 from library_of_h.logger import MainType, ServiceType, SubType, get_logger
 

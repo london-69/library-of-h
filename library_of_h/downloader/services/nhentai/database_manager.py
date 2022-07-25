@@ -1,7 +1,8 @@
 from PySide6 import QtCore as qtc
 
 from library_of_h.database_manager.main import DatabaseManagerBase
-from library_of_h.downloader.services.nhentai.metadata import nhentaiGalleryMetadata
+from library_of_h.downloader.services.nhentai.metadata import \
+    nhentaiGalleryMetadata
 
 
 class nhentaiDatabaseManager:

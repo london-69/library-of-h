@@ -8,12 +8,10 @@ from PySide6 import QtNetwork as qtn
 
 from library_of_h.custom_widgets.elapsed_timer import ElapsedTimer
 from library_of_h.downloader.base_classes.metadata import GalleryMetadataBase
-from library_of_h.downloader.base_classes.network_access_manager import (
-    NetworkAccessManagerBase,
-)
-from library_of_h.downloader.custom_sub_classes.download_files_model import (
-    DownloadFilesModel,
-)
+from library_of_h.downloader.base_classes.network_access_manager import \
+    NetworkAccessManagerBase
+from library_of_h.downloader.custom_sub_classes.download_files_model import \
+    DownloadFilesModel
 
 
 class ServiceDownloaderBase(qtc.QObject):

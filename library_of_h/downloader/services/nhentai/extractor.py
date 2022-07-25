@@ -10,12 +10,9 @@ from PySide6 import QtCore as qtc
 
 from library_of_h.downloader.services.nhentai.constants import *
 from library_of_h.downloader.services.nhentai.metadata import (
-    nhentaiFileMetadata,
-    nhentaiGalleryMetadata,
-)
-from library_of_h.downloader.services.nhentai.network_access_manager import (
-    nhentaiNetworkAccessManager,
-)
+    nhentaiFileMetadata, nhentaiGalleryMetadata)
+from library_of_h.downloader.services.nhentai.network_access_manager import \
+    nhentaiNetworkAccessManager
 from library_of_h.logger import MainType, ServiceType, SubType, get_logger
 from library_of_h.preferences import Preferences
 

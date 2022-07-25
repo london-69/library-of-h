@@ -21,6 +21,10 @@
 (DOWNLOADER) Download thumbnail for separate usage.
 (VIEWER) Video viewer too.
 (VIEWER) Maybe animated thumbnail like youtube.
+(BROWSER) Implement getting next/previous page.
+(BROWSER) Lower number of steps for scrolling.
+(BROWSER) Try browser with mroe than 25 items.
+(EXPLORER) Implement filter.
 
 (DOWNLOADER) (MAYBE) Show stats for when the download started.
 (DOWNLOADER) (MAYBE) check if a new gallery exists by comparing the date uploaded of the first gallery in the result with the latest gallery in database.

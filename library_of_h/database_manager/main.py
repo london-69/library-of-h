@@ -12,7 +12,8 @@ from PySide6 import QtWidgets as qtw
 
 from library_of_h.custom_widgets.progress_dialog import ProgressDialog
 from library_of_h.database_manager.constants import (JOIN_MAPPING, LEN_QUERIES,
-                                                     QUERIES, WHERE_MAPPING)
+                                                     QUERIES, SELECT_MAPPING,
+                                                     WHERE_MAPPING)
 from library_of_h.logger import MainType, ServiceType, SubType, get_logger
 from library_of_h.preferences import Preferences
 from library_of_h.signals_hub.signals_hub import database_manager_signals
@@ -29,20 +30,20 @@ class DatabaseManagerBase(qtc.QObject):
     _read_operation_finished_signal = qtc.Signal(list, object)
 
     @classmethod
-    def get_instance(cls):
+    def get_instance(cls, *args, **kwargs):
         if cls._instance:
             return proxy(cls._instance)
 
         instance = super().__new__(cls)
-        instance._initialize()
+        instance._initialize(*args, **kwargs)
         cls._instance = instance
         return proxy(cls._instance)
 
     def __init__(self) -> None:
         raise RuntimeError("Use the classmethod 'get_instance' to get an instance.")
 
-    def _initialize(self):
-        super().__init__()
+    def _initialize(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self._logger = get_logger(
             main_type=MainType.DATABASE,
@@ -153,15 +154,13 @@ class DatabaseManagerBase(qtc.QObject):
         QtSql.QSqlDatabase.database("PRAGMA").close()
         QtSql.QSqlDatabase.removeDatabase("PRAGMA")
 
-    def _parse_filter_clause(
-        self, filter_clause: str, comp: str
-    ) -> tuple[str, str, list, list]:
+    def _parse_filter(self, filter: str, comp: str) -> tuple[str, str, list, list]:
         """
-        Parses `filter_clause` string to create a valid SQL query.
+        Parses `filter` string to create a valid SQL query.
 
         Parameters
         -----------
-            filter_clause (str):
+            filter (str):
                 A custom query that looks like 'key1:"value1, value2, ..." key2:"..." ...'
             comp (str):
                 Comparision method for the query.
@@ -180,13 +179,13 @@ class DatabaseManagerBase(qtc.QObject):
                 is "auto".
         ]
         """
-        # Let filter_clause = 'artist:"name1, name2" -artist:"name3" language:"english" -language:"korean"'.
+        # Let filter = 'artist:"name1, name2" -artist:"name3" language:"english" -language:"korean"'.
         # Let comp = '='.
         #
         # `ands` is a list of outer most WHERE clauses that are mutually exclusive;
-        # 'key:"value(s)"' pairs in `filter_clause` are mutually excusive WHERE clauses.
+        # 'key:"value(s)"' pairs in `filter` are mutually excusive WHERE clauses.
         ands = self._ands_pattern.findall(
-            filter_clause
+            filter
         )  # ['artist:"name1, name2"', '-artist:"name3"', 'language:"english"', '-language:"korean"']
 
         bind_values = []  # Bind values to use with `QtSql.QSqlQuery` query.
@@ -211,7 +210,7 @@ class DatabaseManagerBase(qtc.QObject):
                     self._or_vals_remove_quotes_pattern.search(or_vals)[1]
                 )
             except TypeError:
-                # `TypeError` means `filter_clause` was malformed in some way;
+                # `TypeError` means `filter` was malformed in some way;
                 # skip this `and_`
                 continue
 
@@ -229,7 +228,7 @@ class DatabaseManagerBase(qtc.QObject):
             try:
                 type_ = WHERE_MAPPING[type_]
             except KeyError:
-                # `KeyError` means `filter_clause` was malformed in some way;
+                # `KeyError` means `filter` was malformed in some way;
                 # skip this include val.
                 continue
 
@@ -250,7 +249,7 @@ class DatabaseManagerBase(qtc.QObject):
             try:
                 type_ = WHERE_MAPPING[type_]
             except KeyError:
-                # `KeyError` means `filter_clause` was malformed in some way;
+                # `KeyError` means `filter` was malformed in some way;
                 # skip this include val.
                 continue
 
@@ -442,11 +441,12 @@ class DatabaseManagerBase(qtc.QObject):
 
     def get(
         self,
-        callback: Callable,
+        get_callback: Callable,
         select: Union[Literal["*"], list[str]] = "*",
         count: bool = False,
+        count_callback: Callable = None,
         join: Union[Literal["auto"], Literal["*"], str, list[str]] = "",
-        filter_clause: str = "",
+        filter: str = "",
         limit: int = 0,
         offset: int = 0,
     ) -> bool:
@@ -456,15 +456,17 @@ class DatabaseManagerBase(qtc.QObject):
         Parameters
         -----------
             callback (Callable):
-                Function to call when read operation ends.
+                Function to call when get operation ends.
             select (str):
                 Which columns to select data from. Defaults to '*'.
             count (bool):
                 Whether to count the total number of results or not.
+            count_callback (Callable):
+                Function to call when count operation ends.
             join (Union[Literal["auto"], Literal['*'], str, list[str]]):
                 Table(s) to join. Defaults to ''. With "auto", join query is
-                selected based on `filter_clause` keys.
-            filter_clause (str):
+                selected based on `filter` keys.
+            filter (str):
                 A custom query that looks like 'key1:"value1, value2, ..." key2:"..." ...'
             limit (int):
                 Limit for maximum number of records to get.
@@ -478,121 +480,155 @@ class DatabaseManagerBase(qtc.QObject):
                     An SQL query created based on the parameters was
                     successfully added to the read query queue.
                 False:
-                    No SQL query was created not added to the read query queue.
-                    Denotes a syntax error in the passed `filter_clause`.
+                    No SQL query was created nor added to the read query queue.
+                    Denotes a syntax error in the passed `filter`.
         """
+        bind_values = []
 
         if select == "*":
-            query_select = f"""SELECT DISTINCT {select} """
+            query_select = f"""SELECT DISTINCT "gallery_database_id", {','.join(SELECT_MAPPING[key] for key in SELECT_MAPPING['*'])} FROM "Galleries\""""
         elif isinstance(select, str):
-            query_select = f"""SELECT DISTINCT "{select}" """
+            try:
+                query_select = f"""SELECT DISTINCT "gallery_database_id", {SELECT_MAPPING[select]} FROM "Galleries\""""
+            except KeyError:
+                return False
         else:
-            query_select = f"""SELECT DISTINCT "{'","'.join(select)}" """
-        if count:
-            query_select += ", c.total_rows"
-        query_select += """ FROM "Galleries\""""
-        if count:
-            query_select += """, (SELECT COUNT(1) total_rows FROM "Galleries") c"""
+            try:
+                query_select = f"""SELECT DISTINCT "gallery_database_id", {','.join(SELECT_MAPPING[key] for key in select)} FROM "Galleries\""""
+            except KeyError:
+                return False
+
         offset_limit_query = ""
         if limit:
             offset_limit_query = f"LIMIT {limit} OFFSET {offset}"
 
-        if filter_clause == "":
-            if join == "":
+        if filter == "":
+            if join == "" or join == "auto":
                 query_join = ""
-            elif join == "*" or join == "auto":
+            elif join == "*":
                 query_join = "".join(value for value in JOIN_MAPPING.values())
             elif isinstance(join, str):
-                query_join = JOIN_MAPPING[join]
+                try:
+                    query_join = JOIN_MAPPING[join]
+                except KeyError:
+                    return False
             elif isinstance(join, list):
-                query_join = "".join(JOIN_MAPPING[key] for key in join)
+                try:
+                    query_join = "".join(JOIN_MAPPING[key] for key in join)
+                except KeyError:
+                    return False
 
-            query = "\n\n".join((query_select, query_join, offset_limit_query))
+            query = "\n".join(
+                (query_select, query_join, 'GROUP BY "gallery_database_id"')
+            )
 
-            self.read_query_queue.put((query, callback))
-            return True
-
-        comp_pref = Preferences.get_instance()["database_preferences"]["compare_like"]
-        if comp_pref:
-            comp = " LIKE "
         else:
-            comp = "="
+            comp_pref = Preferences.get_instance()["database_preferences"][
+                "compare_like"
+            ]
+            if comp_pref:
+                comp = " LIKE "
+            else:
+                comp = "="
 
-        (
-            include_query_logic,
-            exclude_query_logic,
-            bind_values,
-            type_keys,
-        ) = self._parse_filter_clause(filter_clause=filter_clause, comp=comp)
+            (
+                include_query_logic,
+                exclude_query_logic,
+                bind_values,
+                type_keys,
+            ) = self._parse_filter(filter=filter, comp=comp)
 
-        if join == "":
-            query_join = ""
-        elif isinstance(join, list):
-            query_join = "".join(JOIN_MAPPING[key] for key in join)
-        elif join == "*":
-            query_join = "".join(value for value in JOIN_MAPPING.values())
-        elif join == "auto":
-            query_join = "".join(JOIN_MAPPING[key] for key in type_keys)
-        elif isinstance(join, str):
-            query_join = JOIN_MAPPING[join]
-        elif isinstance(join, list):
-            query_join = "".join(JOIN_MAPPING[key] for key in join)
-
-        if not (include_query_logic or exclude_query_logic):
-            return False
-
-        elif include_query_logic and exclude_query_logic:
-            # SELECT * FROM "Table"
-            # JOIN (...)
-            # WHERE (include)
-            # AND "gallery_database_id" NOT IN (
-            #   SELECT "gallery_database_id" FROM "Table"
-            #   JOIN (...)
-            #   WHERE (exclude)
-            # )
-
-            query = "\n\n".join(
-                (
-                    query_select,
-                    query_join,
-                    "WHERE",
-                    include_query_logic,
-                    'AND "gallery_database_id" NOT IN (',
-                    'SELECT "gallery_database_id" FROM "Galleries"',
-                    query_join,
-                    "WHERE",
-                    exclude_query_logic,
-                    ")",
-                    offset_limit_query,
+            if join == "":
+                query_join = ""
+            elif isinstance(join, list):
+                try:
+                    query_join = "".join(JOIN_MAPPING[key] for key in join)
+                except KeyError:
+                    return False
+            elif join == "*":
+                query_join = "".join(value for value in JOIN_MAPPING.values())
+            elif join == "auto":
+                query_join = "".join(
+                    JOIN_MAPPING[key] for key in type_keys if key != "gallery"
                 )
-            )
+            elif isinstance(join, str):
+                try:
+                    query_join = JOIN_MAPPING[join]
+                except KeyError:
+                    return False
+            elif isinstance(join, list):
+                try:
+                    query_join = "".join(JOIN_MAPPING[key] for key in join)
+                except KeyError:
+                    return False
 
-        elif include_query_logic:
-            query = "\n\n".join(
-                (
-                    query_select,
-                    query_join,
-                    "WHERE",
-                    include_query_logic,
-                    offset_limit_query,
-                )
-            )
+            if not (include_query_logic or exclude_query_logic):
+                return False
 
-        elif exclude_query_logic:
-            query = "\n\n".join(
-                (
-                    query_select,
-                    "WHERE",
-                    '"gallery_database_id" NOT IN (',
-                    'SELECT "gallery_database_id" FROM "Galleries"',
-                    query_join,
-                    "WHERE",
-                    exclude_query_logic,
-                    ")",
-                    offset_limit_query,
+            if include_query_logic and exclude_query_logic:
+                # SELECT * FROM "Table"
+                # JOIN (...)
+                # WHERE (include)
+                # AND "gallery_database_id" NOT IN (
+                #   SELECT "gallery_database_id" FROM "Table"
+                #   JOIN (...)
+                #   WHERE (exclude)
+                # )
+
+                query = "\n".join(
+                    (
+                        query_select,
+                        query_join,
+                        "WHERE",
+                        include_query_logic,
+                        'AND "gallery_database_id" NOT IN (',
+                        'SELECT "gallery_database_id" FROM "Galleries"',
+                        query_join,
+                        "WHERE",
+                        exclude_query_logic,
+                        ")",
+                        'GROUP BY "gallery_database_id"',
+                    )
                 )
+
+            elif include_query_logic:
+                query = "\n".join(
+                    (
+                        query_select,
+                        query_join,
+                        "WHERE",
+                        include_query_logic,
+                        'GROUP BY "gallery_database_id"',
+                    )
+                )
+
+            elif exclude_query_logic:
+                query = "\n".join(
+                    (
+                        query_select,
+                        "WHERE",
+                        '"gallery_database_id" NOT IN (',
+                        'SELECT "gallery_database_id" FROM "Galleries"',
+                        query_join,
+                        "WHERE",
+                        exclude_query_logic,
+                        ")",
+                        'GROUP BY "gallery_database_id"',
+                    )
+                )
+
+        if count:
+            count_query = "\n".join(("SELECT COUNT(1) total_rows FROM (", query, ")"))
+            self.read_query_queue.put((count_query, bind_values, count_callback))
+
+        get_query = "\n".join(
+            (
+                query,
+                offset_limit_query,
             )
-        self.read_query_queue.put((query, bind_values, callback))
+        )
+
+        self.read_query_queue.put((get_query, bind_values, get_callback))
         return True
 
     def insert_into_artists(self, gallery_id: int, artist_name: str) -> None:

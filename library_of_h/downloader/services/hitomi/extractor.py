@@ -10,9 +10,7 @@ from PySide6 import QtCore as qtc
 
 from library_of_h.downloader.services.hitomi.constants import *
 from library_of_h.downloader.services.hitomi.metadata import (
-    HitomiFileMetadata,
-    HitomiGalleryMetadata,
-)
+    HitomiFileMetadata, HitomiGalleryMetadata)
 from library_of_h.logger import MainType, ServiceType, SubType, get_logger
 from library_of_h.miscellaneous.functions import utc_to_local
 from library_of_h.preferences import Preferences

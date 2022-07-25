@@ -14,6 +14,8 @@ class Explorer(qtw.QWidget):
         self._create_filter()
         self._create_image_browser()
 
+        self._filter.filter_button_clicked_signal.connect(self._image_browser.filter)
+
         self.layout().addWidget(self._filter)
         self.layout().addWidget(self._image_browser)
 
